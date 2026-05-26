@@ -1,0 +1,23 @@
+[package]
+name = "continuum-core"
+description = "Continuum shared types, traits, errors, IDs, and capability tokens."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+uuid        = { workspace = true }
+time        = { workspace = true }
+async-trait = { workspace = true }
+futures     = { workspace = true }
+tokio-util  = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"

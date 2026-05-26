@@ -1,0 +1,56 @@
+# Core
+/crates/continuum-core/ @continuum-core-team
+/crates/continuum-config/ @continuum-core-team
+
+# Models
+/crates/continuum-models/ @continuum-models-team
+/crates/continuum-models-registry/ @continuum-models-team
+
+# Planning
+/crates/continuum-planner/ @continuum-planner-team
+
+# Repository
+/crates/continuum-repo/ @continuum-repo-team
+
+# Sandbox
+/crates/continuum-sandbox/ @continuum-infra-team
+
+# Agents
+/crates/continuum-agents/ @continuum-agents-team
+
+# Validation
+/crates/continuum-validation/ @continuum-qa-team
+
+# Security
+/crates/continuum-security/ @continuum-security-team
+/crates/continuum-tools-security/ @continuum-security-team
+
+# Tools
+/crates/continuum-tools-linters/ @continuum-qa-team
+/crates/continuum-tools-testing/ @continuum-qa-team
+/crates/continuum-tools-browser/ @continuum-qa-team
+
+# Storage
+/crates/continuum-storage/ @continuum-infra-team
+
+# Memory
+/crates/continuum-memory/ @continuum-memory-team
+
+# Recovery
+/crates/continuum-recovery/ @continuum-infra-team
+
+# Runtime
+/crates/continuum-runtime/ @continuum-runtime-team
+
+# CLI
+/crates/continuum-cli/ @continuum-core-team
+
+# Telemetry
+/crates/continuum-telemetry/ @continuum-infra-team
+
+# Documentation
+/plans/ @continuum-core-team
+/docs/ @continuum-core-team
+
+# CI
+/.github/ @continuum-infra-team

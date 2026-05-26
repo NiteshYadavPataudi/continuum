@@ -1,0 +1,103 @@
+# ── Rust / Cargo ─────────────────────────────────────────────────
+/target/
+**/target/
+# Cargo.lock is intentionally NOT ignored for binaries.
+# If this repo is purely a library, uncomment the next line:
+# Cargo.lock
+
+# ── Secrets & credentials ────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.toml
+credentials.json
+
+# ── Continuum runtime files ──────────────────────────────────────
+# User config — contains API keys, never commit
+.continuum/
+continuum.toml
+
+# SQLite files written at runtime
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Replay / audit event logs
+replay_events/
+audit_logs/
+
+# ── Editor & IDE ─────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+.sln
+*~
+
+# ── OS ───────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+Thumbs.db
+
+# ── Node / JavaScript ────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+dist/
+.next/
+.nuxt/
+.output/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Benchmark & profiling ─────────────────────────────────────────
+criterion/
+flamegraph.svg
+perf.data
+perf.data.old
+*.profdata
+*.profraw
+
+# ── Test fixtures: generated output only ─────────────────────────
+fixtures/**/target/
+fixtures/**/node_modules/
+fixtures/**/__pycache__/
+fixtures/**/.venv/
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Claude / AI tooling ──────────────────────────────────────────
+.claude/worktrees/

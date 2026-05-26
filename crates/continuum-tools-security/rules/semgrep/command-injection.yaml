@@ -1,0 +1,10 @@
+rules:
+  - id: command-injection
+    patterns:
+      - pattern-either:
+          - pattern: std::process::Command::new($CMD).arg(...)
+          - pattern: std::process::Command::new($CMD).args(...)
+      - pattern-not: std::process::Command::new("...")
+    message: Potential command injection via dynamic command construction
+    severity: WARNING
+    languages: [rust]

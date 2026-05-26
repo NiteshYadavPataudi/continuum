@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check *)",
+      "Bash(cargo clippy *)",
+      "Bash(grep -v \"^warning\\\\|^$\\\\| = \\\\| --> \\\\|note:\\\\|help:\\\\|\\\\^\\\\^\")",
+      "Bash(grep -v \"^$\\\\| = \\\\| --> \\\\|note:\\\\|help:\\\\|\\\\^\")",
+      "Bash(where gcc *)",
+      "Bash(rustup show *)",
+      "Bash(rustup toolchain *)"
+    ]
+  }
+}

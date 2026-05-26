@@ -1,0 +1,29 @@
+[package]
+name = "continuum-telemetry"
+description = "tracing + OpenTelemetry + Prometheus wiring for Continuum."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core              = { workspace = true }
+tokio                       = { workspace = true }
+tracing                     = { workspace = true }
+tracing-subscriber          = { workspace = true }
+opentelemetry               = { workspace = true }
+opentelemetry-otlp          = { workspace = true }
+opentelemetry_sdk           = { workspace = true }
+tracing-opentelemetry       = { workspace = true }
+metrics                     = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+
+
+[features]
+default = []
+prometheus = []
+
+[lints.rust]
+unsafe_code = "forbid"

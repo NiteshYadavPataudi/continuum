@@ -1,0 +1,7 @@
+rules:
+  - id: unsafe-function
+    pattern: |
+      pub unsafe fn $NAME(...)
+    message: Public unsafe functions are a security risk
+    severity: WARNING
+    languages: [rust]

@@ -1,0 +1,31 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "prometheus", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Continuum — Validation Funnel",
+  "uid": "continuum-validation-funnel",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Findings / stage",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum by(stage) (rate(continuum_validation_findings_total[5m]))",
+        "legendFormat": "{{stage}}"
+      }]
+    },
+    {
+      "title": "Findings by severity",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "targets": [{
+        "expr": "sum by(severity) (continuum_validation_findings_total)",
+        "legendFormat": "{{severity}}"
+      }]
+    }
+  ]
+}

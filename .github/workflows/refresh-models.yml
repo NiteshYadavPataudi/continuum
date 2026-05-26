@@ -1,0 +1,48 @@
+name: Refresh Models Snapshot
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  refresh:
+    name: xtask refresh-models
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run xtask refresh-models
+        id: refresh
+        run: cargo xtask refresh-models
+        continue-on-error: true
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if ! git diff --quiet -- crates/continuum-models-registry/models-snapshot.json; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(models): weekly registry refresh"
+          title: "chore(models): weekly registry refresh"
+          body: |
+            Automated weekly refresh of the models registry snapshot.
+
+            Changes detected in `crates/continuum-models-registry/models-snapshot.json`.
+            Review the diff before merging.
+          branch: chore/refresh-models
+          base: main
+          labels: automated, models

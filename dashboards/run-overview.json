@@ -1,0 +1,46 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "prometheus", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Continuum — Run Overview",
+  "uid": "continuum-run-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Tasks / sec",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "rate(continuum_tasks_total[5m])",
+        "legendFormat": "{{state}}"
+      }]
+    },
+    {
+      "title": "Task Duration (p50 / p95)",
+      "type": "heatmap",
+      "gridPos": { "h": 6, "w": 12, "x": 6, "y": 0 },
+      "targets": [{
+        "expr": "histogram_quantile(0.5, rate(continuum_task_duration_seconds_bucket[5m]))",
+        "legendFormat": "p50"
+      }, {
+        "expr": "histogram_quantile(0.95, rate(continuum_task_duration_seconds_bucket[5m]))",
+        "legendFormat": "p95"
+      }]
+    },
+    {
+      "title": "Active Runs",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 6 },
+      "targets": [{ "expr": "count(continuum_tasks_total{state=\"running\"})" }]
+    },
+    {
+      "title": "Error Rate",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 6 },
+      "targets": [{ "expr": "rate(continuum_tasks_total{state=\"failed\"}[5m])" }]
+    }
+  ]
+}

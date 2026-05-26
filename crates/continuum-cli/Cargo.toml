@@ -1,0 +1,43 @@
+[package]
+name = "continuum-cli"
+description = "The `continuum` binary: CLI runtime, subcommands, ratatui live dashboard."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "continuum"
+path = "src/main.rs"
+
+[dependencies]
+continuum-core            = { workspace = true }
+continuum-config          = { workspace = true }
+continuum-telemetry       = { workspace = true }
+continuum-runtime         = { workspace = true }
+continuum-repo            = { workspace = true }
+continuum-planner         = { workspace = true }
+continuum-markdown        = { workspace = true }
+continuum-storage         = { workspace = true }
+continuum-memory          = { workspace = true }
+continuum-recovery        = { workspace = true }
+continuum-models          = { workspace = true }
+continuum-models-registry = { workspace = true }
+continuum-security        = { workspace = true }
+continuum-agents          = { workspace = true }
+tokio                     = { workspace = true }
+clap                      = { workspace = true }
+ratatui                   = { workspace = true }
+crossterm                 = { workspace = true }
+console                   = { workspace = true }
+tracing                   = { workspace = true }
+thiserror                 = { workspace = true }
+uuid                      = { workspace = true }
+time                      = { workspace = true }
+futures                   = { workspace = true }
+serde_json                = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

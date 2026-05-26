@@ -1,0 +1,28 @@
+[package]
+name = "continuum-recovery"
+description = "Checkpoints, rollback, replay, stuck-task detection."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core           = { workspace = true }
+continuum-storage        = { workspace = true }
+continuum-memory         = { workspace = true }
+continuum-telemetry      = { workspace = true }
+tokio                    = { workspace = true }
+async-trait              = { workspace = true }
+futures                  = { workspace = true }
+serde                    = { workspace = true }
+serde_json               = { workspace = true }
+thiserror                = { workspace = true }
+time                     = { workspace = true }
+tracing                  = { workspace = true }
+tracing-subscriber       = { workspace = true }
+uuid                     = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

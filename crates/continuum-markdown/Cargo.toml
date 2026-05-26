@@ -1,0 +1,22 @@
+[package]
+name = "continuum-markdown"
+description = "Parsers for the eight engineering docs that drive Continuum's runtime behaviour."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core = { workspace = true }
+pulldown-cmark = { workspace = true }
+gray_matter    = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+serde_yaml     = { workspace = true }
+thiserror      = { workspace = true }
+walkdir        = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

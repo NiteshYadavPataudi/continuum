@@ -1,0 +1,34 @@
+[package]
+name = "continuum-models"
+description = "Multi-provider model orchestration (OpenAI, Anthropic, Gemini, DeepSeek, Ollama)."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core            = { workspace = true }
+continuum-models-registry = { workspace = true }
+continuum-config          = { workspace = true }
+continuum-telemetry       = { workspace = true }
+tokio                     = { workspace = true }
+async-trait               = { workspace = true }
+futures                   = { workspace = true }
+serde                     = { workspace = true }
+serde_json                = { workspace = true }
+thiserror                 = { workspace = true }
+reqwest                   = { workspace = true }
+tracing                   = { workspace = true }
+
+[features]
+default = ["anthropic", "openai", "ollama", "gemini"]
+anthropic = []
+openai    = []
+gemini    = []
+deepseek  = []
+ollama    = []
+
+[lints.rust]
+unsafe_code = "forbid"

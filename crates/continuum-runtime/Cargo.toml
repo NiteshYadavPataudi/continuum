@@ -1,0 +1,36 @@
+[package]
+name = "continuum-runtime"
+description = "Orchestrator: scheduler, cancellation, backpressure. Wires planner → agents → sandbox → validation → memory → recovery."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core       = { workspace = true }
+continuum-config     = { workspace = true }
+continuum-telemetry  = { workspace = true }
+continuum-markdown   = { workspace = true }
+continuum-planner    = { workspace = true }
+continuum-agents     = { workspace = true }
+continuum-repo       = { workspace = true }
+continuum-memory     = { workspace = true }
+continuum-models     = { workspace = true }
+continuum-sandbox    = { workspace = true }
+continuum-validation = { workspace = true }
+continuum-recovery   = { workspace = true }
+continuum-security   = { workspace = true }
+continuum-storage    = { workspace = true }
+tokio                = { workspace = true }
+tokio-util           = { workspace = true }
+async-trait          = { workspace = true }
+futures              = { workspace = true }
+serde                = { workspace = true }
+serde_json           = { workspace = true }
+thiserror            = { workspace = true }
+tracing              = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

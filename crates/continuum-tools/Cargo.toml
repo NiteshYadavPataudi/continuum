@@ -1,0 +1,19 @@
+[package]
+name = "continuum-tools"
+description = "Shared ToolRunner trait and registry for Continuum tool integrations."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core    = { workspace = true }
+continuum-sandbox = { workspace = true }
+async-trait       = { workspace = true }
+serde             = { workspace = true }
+thiserror         = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

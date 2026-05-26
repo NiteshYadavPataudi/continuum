@@ -1,0 +1,37 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "prometheus", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Continuum — Memory Pressure",
+  "uid": "continuum-memory-pressure",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Items / layer",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "continuum_memory_items",
+        "legendFormat": "{{layer}}"
+      }]
+    },
+    {
+      "title": "Compression events",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 8 },
+      "targets": [{ "expr": "rate(continuum_memory_compressions_total[5m])" }]
+    },
+    {
+      "title": "Checkpoints / session",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 4, "y": 8 },
+      "targets": [{
+        "expr": "rate(continuum_recovery_checkpoints_total[5m])",
+        "legendFormat": "checkpoints"
+      }]
+    }
+  ]
+}

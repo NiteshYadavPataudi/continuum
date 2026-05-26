@@ -1,0 +1,28 @@
+[package]
+name = "continuum-validation"
+description = "10-stage validation pipeline for Continuum."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core             = { workspace = true }
+continuum-sandbox          = { workspace = true }
+continuum-tools            = { workspace = true }
+continuum-tools-linters    = { workspace = true }
+continuum-tools-security   = { workspace = true }
+continuum-tools-testing    = { workspace = true }
+continuum-telemetry        = { workspace = true }
+tokio                      = { workspace = true }
+async-trait                = { workspace = true }
+futures                    = { workspace = true }
+serde                      = { workspace = true }
+serde_json                 = { workspace = true }
+thiserror                  = { workspace = true }
+tracing                    = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

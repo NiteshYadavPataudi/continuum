@@ -1,0 +1,31 @@
+[package]
+name = "continuum-tools-testing"
+description = "Test-runner integrations (Vitest, Jest, Pytest, cargo test, k6)."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+version.workspace = true
+
+[dependencies]
+continuum-core    = { workspace = true }
+continuum-sandbox = { workspace = true }
+continuum-tools   = { workspace = true }
+async-trait       = { workspace = true }
+futures           = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+thiserror         = { workspace = true }
+tracing           = { workspace = true }
+
+[features]
+default = ["cargo-test", "pytest", "vitest", "jest"]
+cargo-test = []
+pytest     = []
+vitest     = []
+jest       = []
+k6         = []
+
+[lints.rust]
+unsafe_code = "forbid"

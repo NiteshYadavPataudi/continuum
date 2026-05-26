@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["schema_version", "providers"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "fetched_at": {"type": ["string", "null"]},
+    "providers": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "type": "object",
+          "required": ["name", "models"],
+          "properties": {
+            "name": {"type": "string"},
+            "models": {
+              "type": "object",
+              "patternProperties": {
+                "^[a-zA-Z0-9/._-]+$": {
+                  "type": "object",
+                  "required": ["name", "context_window", "max_output", "tool_calls", "streaming", "pricing"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "context_window": {"type": "integer"},
+                    "max_output": {"type": "integer"},
+                    "tool_calls": {"type": "boolean"},
+                    "streaming": {"type": "boolean"},
+                    "pricing": {
+                      "type": "object",
+                      "required": ["input_per_mtok", "output_per_mtok"],
+                      "properties": {
+                        "input_per_mtok": {"type": "number"},
+                        "output_per_mtok": {"type": "number"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

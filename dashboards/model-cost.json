@@ -1,0 +1,37 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "prometheus", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Continuum — Model Cost",
+  "uid": "continuum-model-cost",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Cost / provider (cumulative)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum by(provider) (continuum_model_cost_usd_total)",
+        "legendFormat": "{{provider}}"
+      }]
+    },
+    {
+      "title": "Token consumption / model",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [{
+        "expr": "sum by(model, direction) (rate(continuum_model_tokens_total[5m]))",
+        "legendFormat": "{{model}} ({{direction}})"
+      }]
+    },
+    {
+      "title": "Session budget remaining",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
+      "targets": [{ "expr": "continuum_model_cost_usd_total" }]
+    }
+  ]
+}

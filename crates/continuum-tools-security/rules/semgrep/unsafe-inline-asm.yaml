@@ -1,0 +1,6 @@
+rules:
+  - id: unsafe-inline-asm
+    pattern: std::arch::asm!(...)
+    message: Inline assembly bypasses memory safety guarantees
+    severity: WARNING
+    languages: [rust]
