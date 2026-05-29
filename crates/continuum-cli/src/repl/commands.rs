@@ -171,7 +171,7 @@ fn cmd_models(session: &mut ReplSession) {
         println!("  Use /providers to see available providers.");
     } else {
         println!("  Available models for {}:", session.provider);
-        println!("  {:<4} {:<50} {:<12} {}", "#", "MODEL", "CTX", "PRICE");
+        println!("  {:<4} {:<50} {:<12} PRICE", "#", "MODEL", "CTX");
         println!("  {}", "─".repeat(80));
 
         for (i, (id, meta)) in models.iter().enumerate() {
@@ -263,10 +263,7 @@ fn cmd_providers(session: &ReplSession) {
     println!();
     println!("  Available providers  ({} total)", PROVIDERS.len());
     println!();
-    println!(
-        "  {:<18} {:<24} {:<30} {}",
-        "ID", "NAME", "MODELS", "STATUS"
-    );
+    println!("  {:<18} {:<24} {:<30} STATUS", "ID", "NAME", "MODELS");
     println!("  {}", "─".repeat(80));
 
     let mut sorted: Vec<_> = PROVIDERS.entries().collect();

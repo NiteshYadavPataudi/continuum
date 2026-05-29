@@ -1,5 +1,7 @@
 //! Dark terminal theme for Continuum TUI.
 
+#![allow(dead_code)]
+
 use ratatui::style::{Color, Modifier, Style};
 
 /// Theme colors.

@@ -145,7 +145,7 @@ fn patterns() -> &'static Vec<RedactionPattern> {
     })
 }
 
-/// Redact secrets from text, replacing them with [REDACTED:pattern_name].
+/// Redact secrets from text, replacing them with `[REDACTED:pattern_name]`.
 ///
 /// Returns the redacted text and a count of redactions made.
 pub fn redact(text: &str) -> (String, usize) {
@@ -210,8 +210,6 @@ mod tests {
         assert!(count > 0);
         assert!(!redacted.contains("sk-proj-"));
     }
-
-
 
     #[test]
     fn test_redact_jwt() {

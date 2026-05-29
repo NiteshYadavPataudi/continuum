@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Static slash-command catalog used by the TUI command palette.
 #[derive(Debug, Clone, Copy)]
 pub struct SlashCommand {

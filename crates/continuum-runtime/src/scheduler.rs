@@ -283,7 +283,6 @@ impl Scheduler {
                     .cloned()
                     .unwrap_or_else(|| Arc::new(Semaphore::new(1)));
                 let global_limit = self.concurrency.clone();
-                let total_nodes = total_nodes;
                 let task_base_root = base_root.clone();
 
                 joinset.spawn(async move {
@@ -341,7 +340,6 @@ impl Scheduler {
                     .cloned()
                     .unwrap_or_else(|| Arc::new(Semaphore::new(1)));
                 let global_limit = self.concurrency.clone();
-                let total_nodes = total_nodes;
                 let outcome = execute_task_node(
                     agent,
                     node,
@@ -981,11 +979,10 @@ async fn execute_task_node(
     }
 
     let completed = completed_nodes.fetch_add(1, Ordering::SeqCst) + 1;
-    let percent = if total_nodes == 0 {
-        100
-    } else {
-        ((completed * 100) / total_nodes).min(100)
-    } as u8;
+    let percent = (completed.checked_mul(100))
+        .and_then(|v| v.checked_div(total_nodes))
+        .map(|v| v.min(100))
+        .unwrap_or(100) as u8;
 
     if let Some(ref recovery) = recovery {
         let state = SessionState::new(serde_json::json!({

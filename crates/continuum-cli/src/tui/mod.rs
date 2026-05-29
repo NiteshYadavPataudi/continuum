@@ -3,6 +3,8 @@
 //! Provides a Claude Code-style terminal interface with:
 //! - Header bar (app name, model, project, git, mode, tokens)
 //! - Main conversation timeline
+
+#![allow(dead_code)]
 //! - Right sidebar (agent activity, models, files)
 //! - Bottom composer (input, hints, status)
 //! - Keyboard navigation (vim-like)

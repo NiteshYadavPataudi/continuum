@@ -109,6 +109,7 @@ pub fn init() {
     let _ = subscriber.try_init();
 }
 
+#[allow(dead_code)]
 fn build_otlp_layer(
     endpoint: &str,
 ) -> Option<Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>> {

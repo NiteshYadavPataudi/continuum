@@ -5,6 +5,8 @@
 //! 2. `continuum "goal"` — execute a goal directly
 //! 3. `continuum <subcommand>` — traditional subcommand
 
+#![allow(clippy::useless_conversion, dead_code)]
+
 use clap::{Parser, Subcommand};
 
 mod commands;
@@ -95,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // TUI mode
     if cli.tui {
         let session = repl::ReplSession::new();
-        return tui::run_tui(session).map_err(|e| e.into());
+        return tui::run_tui(session);
     }
 
     // Check for --continue or --resume flags

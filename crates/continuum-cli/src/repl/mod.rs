@@ -41,6 +41,7 @@ impl EffortLevel {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for EffortLevel {
     fn default() -> Self {
         Self::Medium
@@ -215,7 +216,7 @@ pub async fn run_repl(initial_prompt: Option<String>) -> Result<(), Box<dyn std:
 
     // Main REPL loop
     loop {
-        let prompt = format!("continuum > ");
+        let prompt = "continuum > ".to_string();
         match rl.readline(&prompt) {
             Ok(line) => {
                 let line = line.trim().to_string();

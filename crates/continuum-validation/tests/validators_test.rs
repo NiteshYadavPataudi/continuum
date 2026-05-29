@@ -9,7 +9,6 @@ fn test_all_validators_count() {
 
 #[test]
 fn test_validator_stages_are_unique() {
-    use continuum_core::validator::ValidationStage;
     use std::collections::HashSet;
 
     let registry = AllValidators::new();

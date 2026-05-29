@@ -3,6 +3,8 @@
 //! Renders the full-screen terminal UI with:
 //! - Header bar (app name, model, project, git, mode, tokens)
 //! - Main conversation timeline
+
+#![allow(dead_code, clippy::struct_excessive_bools)]
 //! - Right sidebar (agent activity, models, files)
 //! - Bottom composer (input, hints, status)
 

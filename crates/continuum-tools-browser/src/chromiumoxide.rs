@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 
-use continuum_core::caps::{Cap, HostExec};
+use continuum_core::caps::Cap;
 use continuum_core::ids::ToolId;
 use continuum_core::sandbox::{ExecEvent, ExecRequest, SandboxHandle};
 use continuum_core::tool::{ToolError, ToolFamily, ToolInvocation, ToolReport, ToolRunner};
 use continuum_core::validator::Finding;
 
+/// Browser automation via the `chromiumoxide` crate (direct CDP).
 #[derive(Debug)]
 pub struct ChromiumoxideRunner;
 

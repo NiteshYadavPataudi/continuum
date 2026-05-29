@@ -21,7 +21,7 @@ enum Command {
     Release,
     /// Run benchmarks.
     Bench,
-    /// Lint for Cap<T>::grant() calls outside continuum-security.
+    /// Lint for `Cap<T>::grant()` calls outside continuum-security.
     SecurityLint,
 }
 

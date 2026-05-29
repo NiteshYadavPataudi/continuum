@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use continuum_core::caps::{CallModels, HostExec, NetworkEgress, ReadSecrets};
 use continuum_security::{HardeningMode, SecurityPolicy, SeverityFloor};
 

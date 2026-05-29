@@ -74,7 +74,7 @@ pub async fn run_onboarding(session: &mut ReplSession) -> Result<(), Box<dyn std
     ];
 
     let mut displayed = Vec::new();
-    println!("  {:<4} {:<24} {:<30} {}", "#", "ID", "NAME", "MODELS");
+    println!("  {:<4} {:<24} {:<30} MODELS", "#", "ID", "NAME");
     println!("  {}", "─".repeat(70));
 
     // Show top providers
@@ -85,11 +85,10 @@ pub async fn run_onboarding(session: &mut ReplSession) -> Result<(), Box<dyn std
                 .filter(|(k, _)| k.starts_with(&format!("{pid}/")))
                 .count();
             println!(
-                "  {:<4} {:<24} {:<30} {}",
+                "  {:<4} {:<24} {:<30} {model_count} model(s)",
                 i + 1,
                 pid,
                 meta.name,
-                format!("{model_count} model(s)")
             );
             displayed.push(*pid);
         }
@@ -189,7 +188,7 @@ pub async fn run_onboarding(session: &mut ReplSession) -> Result<(), Box<dyn std
         println!();
         println!("  Select default model:");
         println!();
-        println!("  {:<4} {:<50} {:<12} {}", "#", "MODEL", "CTX", "PRICE");
+        println!("  {:<4} {:<50} {:<12} PRICE", "#", "MODEL", "CTX");
         println!("  {}", "─".repeat(80));
 
         for (i, (id, meta)) in models.iter().enumerate().take(10) {
@@ -260,7 +259,7 @@ fn show_all_providers_menu(rl: &mut DefaultEditor) -> Result<String, Box<dyn std
     providers.sort_by_key(|(k, _)| *k);
 
     println!();
-    println!("  {:<4} {:<24} {:<24} {}", "#", "ID", "NAME", "MODELS");
+    println!("  {:<4} {:<24} {:<24} MODELS", "#", "ID", "NAME");
     println!("  {}", "─".repeat(65));
 
     for (i, (pid, meta)) in providers.iter().enumerate() {
@@ -269,11 +268,10 @@ fn show_all_providers_menu(rl: &mut DefaultEditor) -> Result<String, Box<dyn std
             .filter(|(k, _)| k.starts_with(&format!("{pid}/")))
             .count();
         println!(
-            "  {:<4} {:<24} {:<24} {}",
+            "  {:<4} {:<24} {:<24} {model_count} model(s)",
             i + 1,
             pid,
             crate::output::truncate_str(meta.name, 23),
-            format!("{model_count} model(s)")
         );
     }
 

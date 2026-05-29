@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use continuum_core::caps::{CallModels, Cap, HostExec};
 
 #[test]
