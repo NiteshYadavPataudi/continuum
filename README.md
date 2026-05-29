@@ -117,10 +117,42 @@ Grafana and Prometheus are optional (for the dashboards).
 
 ## Installation
 
+### One-line installer
+
+**Windows**
+
+```powershell
+irm https://raw.githubusercontent.com/NiteshYadavPataudi/continuum/main/install.ps1 | iex
+```
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NiteshYadavPataudi/continuum/main/install.sh | bash
+```
+
+The installer will:
+
+- build and install `continuum-cli`
+- place the binary in a dedicated install root
+- update your PATH for the current shell
+- persist PATH changes in your user shell profile
+
+### Environment variables
+
+- `CONTINUUM_VERSION`: install a specific version instead of `latest`
+- `CONTINUUM_INSTALL_DIR`: choose the install root used by the installer
+- `INSTALL_DIR`: fallback install root variable supported by both scripts
+
+Default install root:
+
+- Windows: `%USERPROFILE%\.local\continuum`
+- macOS/Linux: `~/.local/continuum`
+
 ### Build from source
 
 ```sh
-git clone https://github.com/your-org/continuum.git
+git clone https://github.com/NiteshYadavPataudi/continuum.git
 cd continuum
 cargo build --release
 ./target/release/continuum doctor   # verify environment
