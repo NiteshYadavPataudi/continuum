@@ -67,6 +67,7 @@ fn main() {
     // Model ID constants
     let mut model_consts = Vec::new();
     let mut model_entries = Vec::new();
+    let mut used_names = std::collections::HashSet::new();
     for pid in &sorted_providers {
         let pentry = &snapshot.providers[*pid];
         let mut sorted_models: Vec<_> = pentry.models.keys().collect();
@@ -74,7 +75,7 @@ fn main() {
         for mid in sorted_models {
             let mentry = &pentry.models[mid];
             let full_key = format!("{pid}/{mid}");
-            let const_name = model_const_name(pid, mid);
+            let const_name = model_const_name(pid, mid, &mut used_names);
             model_consts.push((const_name.clone(), full_key.clone()));
 
             let ipm = fmt_f64(mentry.pricing.input_per_mtok);
@@ -153,9 +154,7 @@ fn main() {
             api_base_url = quote(&pentry.api_base_url),
         ));
     }
-    code.push_str(
-        "pub static PROVIDERS: phf::Map<&'static str, ProviderMeta> = phf::phf_map! {\n",
-    );
+    code.push_str("pub static PROVIDERS: phf::Map<&'static str, ProviderMeta> = phf::phf_map! {\n");
     for entry in &provider_entries {
         code.push_str(entry);
         code.push_str(",\n");
@@ -172,16 +171,26 @@ fn quote(s: &str) -> String {
 }
 
 fn provider_const_name(id: &str) -> String {
-    id.replace(['-', '.'], "_").to_uppercase()
+    let name = id.replace(['-', '.'], "_").to_uppercase();
+    // Prefix with _ if starts with a digit (Rust identifiers can't start with digits)
+    if name.as_bytes()[0].is_ascii_digit() {
+        format!("_{name}")
+    } else {
+        name
+    }
 }
 
-fn model_const_name(provider_id: &str, model_id: &str) -> String {
+fn model_const_name(
+    provider_id: &str,
+    model_id: &str,
+    used: &mut std::collections::HashSet<String>,
+) -> String {
     // Use just the last path segment for the model part
     let core = model_id.rsplit('/').next().unwrap_or(model_id);
     let stripped = strip_date_suffix(core);
-    let provider_part = provider_id.replace(['-', '.'], "_").to_uppercase();
+    let provider_part = provider_const_name(provider_id);
     let model_part = stripped
-        .replace(['-', '.', '/', '+'], "_")
+        .replace(|c: char| !c.is_ascii_alphanumeric() && c != '_', "_")
         .to_uppercase();
     // Collapse runs of underscores
     let mut out = String::new();
@@ -198,7 +207,25 @@ fn model_const_name(provider_id: &str, model_id: &str) -> String {
         }
     }
     let model_part = out.trim_end_matches('_');
-    format!("{provider_part}_{model_part}")
+    let mut name = format!("{provider_part}_{model_part}");
+    // Prefix with _ if starts with a digit
+    if name.as_bytes()[0].is_ascii_digit() {
+        name = format!("_{name}");
+    }
+    // Handle duplicates by appending a suffix
+    if used.contains(&name) {
+        let mut counter = 2u32;
+        loop {
+            let candidate = format!("{name}_{counter}");
+            if !used.contains(&candidate) {
+                name = candidate;
+                break;
+            }
+            counter += 1;
+        }
+    }
+    used.insert(name.clone());
+    name
 }
 
 fn strip_date_suffix(s: &str) -> String {

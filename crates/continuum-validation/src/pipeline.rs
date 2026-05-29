@@ -32,10 +32,7 @@ impl Pipeline {
 
     /// Run all validators in stage order. Required validators that fail
     /// short-circuit the pipeline. Optional validators run regardless.
-    pub async fn run(
-        &self,
-        target: &ValidationTarget,
-    ) -> PipelineResult {
+    pub async fn run(&self, target: &ValidationTarget) -> PipelineResult {
         let ctx = ValidationContext::new();
         let mut reports = Vec::new();
         let mut passed = true;
@@ -45,12 +42,7 @@ impl Pipeline {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::error!(stage = ?v.stage(), error = %e, "validator failed");
-                    ValidationReport::new(
-                        v.stage(),
-                        vec![],
-                        false,
-                        0,
-                    )
+                    ValidationReport::new(v.stage(), vec![], false, 0)
                 }
             };
 

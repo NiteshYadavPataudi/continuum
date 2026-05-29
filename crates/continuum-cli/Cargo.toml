@@ -38,6 +38,9 @@ uuid                      = { workspace = true }
 time                      = { workspace = true }
 futures                   = { workspace = true }
 serde_json                = { workspace = true }
+rustyline                 = "14"
+directories               = "5"
+regex                     = "1"
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -30,6 +30,7 @@ impl ToolRunner for Zap {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting zap", Some(5));
 
         // Determine target URL from invocation args; default to localhost
         let target = invocation
@@ -39,7 +40,12 @@ impl ToolRunner for Zap {
             .unwrap_or("http://localhost:8080");
 
         // Safety check: refuse non-loopback targets for passive scans
-        if invocation.args.get("active_scan").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if invocation
+            .args
+            .get("active_scan")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             let is_local = target.starts_with("http://localhost")
                 || target.starts_with("http://127.0.0.1")
                 || target.starts_with("http://[::1]");
@@ -67,6 +73,7 @@ impl ToolRunner for Zap {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("zap launched", Some(20));
 
         let mut stdout = Vec::new();
         let mut exit_code = 0;
@@ -81,11 +88,13 @@ impl ToolRunner for Zap {
                 _ => {}
             }
         }
+        invocation.tool_progress("zap finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let output = String::from_utf8_lossy(&stdout);
         let findings = parse_zap_output(&output);
 
+        invocation.tool_completed(format!("zap finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

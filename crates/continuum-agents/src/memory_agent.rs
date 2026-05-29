@@ -69,15 +69,17 @@ impl Agent for MemoryAgent {
     async fn handle(
         &self,
         _task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         _cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         // Compress all hot items into warm summaries
+        ctx.task_progress(AgentKind::Memory, "starting memory compression", Some(10));
         let report = self
             .memory
             .compress(CompressionScope::AllHot)
             .await
             .map_err(|e| AgentError::Other(format!("compression failed: {e}")))?;
+        ctx.task_progress(AgentKind::Memory, "memory items compressed", Some(80));
 
         tracing::info!(
             processed = report.processed,
@@ -85,6 +87,8 @@ impl Agent for MemoryAgent {
             tokens_freed = report.tokens_freed,
             "memory compression complete"
         );
+
+        ctx.task_progress(AgentKind::Memory, "finalizing memory report", Some(95));
 
         Ok(AgentOutcome::new(serde_json::json!({
             "status": "compressed",

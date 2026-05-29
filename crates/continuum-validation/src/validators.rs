@@ -120,16 +120,30 @@ macro_rules! exec_validator {
     };
 }
 
-exec_validator!(CompileValidator, ValidationStage::Compile, true, vec!["cargo".into(), "check".into()]);
-exec_validator!(TypeCheckValidator, ValidationStage::TypeCheck, true, vec!["cargo".into(), "check".into()]);
+exec_validator!(
+    CompileValidator,
+    ValidationStage::Compile,
+    true,
+    vec!["cargo".into(), "check".into()]
+);
+exec_validator!(
+    TypeCheckValidator,
+    ValidationStage::TypeCheck,
+    true,
+    vec!["cargo".into(), "check".into()]
+);
 
 #[derive(Debug)]
 pub struct LintValidator;
 
 #[async_trait]
 impl Validator for LintValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::Lint }
-    fn required(&self) -> bool { true }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::Lint
+    }
+    fn required(&self) -> bool {
+        true
+    }
 
     async fn run(
         &self,
@@ -137,7 +151,9 @@ impl Validator for LintValidator {
         _ctx: &ValidationContext,
     ) -> Result<ValidationReport, ValidationError> {
         let start = std::time::Instant::now();
-        let handle = target.sandbox.as_ref()
+        let handle = target
+            .sandbox
+            .as_ref()
             .ok_or_else(|| ValidationError::Other("no sandbox available".into()))?;
 
         let clippy = continuum_tools_linters::Clippy;
@@ -163,21 +179,31 @@ impl Validator for LintValidator {
     }
 }
 
-exec_validator!(UnitTestValidator, ValidationStage::UnitTest, true, vec![
-    "cargo".into(), "test".into(), "--lib".into()
-]);
+exec_validator!(
+    UnitTestValidator,
+    ValidationStage::UnitTest,
+    true,
+    vec!["cargo".into(), "test".into(), "--lib".into()]
+);
 
-exec_validator!(IntegrationTestValidator, ValidationStage::IntegrationTest, false, vec![
-    "cargo".into(), "test".into(), "--test".into(), "*".into()
-]);
+exec_validator!(
+    IntegrationTestValidator,
+    ValidationStage::IntegrationTest,
+    false,
+    vec!["cargo".into(), "test".into(), "--test".into(), "*".into()]
+);
 
 #[derive(Debug)]
 pub struct E2eTestValidator;
 
 #[async_trait]
 impl Validator for E2eTestValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::E2eTest }
-    fn required(&self) -> bool { false }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::E2eTest
+    }
+    fn required(&self) -> bool {
+        false
+    }
 
     async fn run(
         &self,
@@ -188,7 +214,11 @@ impl Validator for E2eTestValidator {
         Ok(ValidationReport::new(
             ValidationStage::E2eTest,
             vec![Finding::new(
-                "e2e", Severity::Info, "E2E tests not yet configured", None, None,
+                "e2e",
+                Severity::Info,
+                "E2E tests not yet configured",
+                None,
+                None,
             )],
             true,
             start.elapsed().as_millis() as u64,
@@ -201,8 +231,12 @@ pub struct SecurityScanValidator;
 
 #[async_trait]
 impl Validator for SecurityScanValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::SecurityScan }
-    fn required(&self) -> bool { true }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::SecurityScan
+    }
+    fn required(&self) -> bool {
+        true
+    }
 
     async fn run(
         &self,
@@ -210,7 +244,9 @@ impl Validator for SecurityScanValidator {
         _ctx: &ValidationContext,
     ) -> Result<ValidationReport, ValidationError> {
         let start = std::time::Instant::now();
-        let handle = target.sandbox.as_ref()
+        let handle = target
+            .sandbox
+            .as_ref()
             .ok_or_else(|| ValidationError::Other("no sandbox available".into()))?;
 
         let audit = continuum_tools_security::CargoAudit;
@@ -241,8 +277,12 @@ pub struct StartupValidator;
 
 #[async_trait]
 impl Validator for StartupValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::Startup }
-    fn required(&self) -> bool { false }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::Startup
+    }
+    fn required(&self) -> bool {
+        false
+    }
 
     async fn run(
         &self,
@@ -250,16 +290,27 @@ impl Validator for StartupValidator {
         _ctx: &ValidationContext,
     ) -> Result<ValidationReport, ValidationError> {
         let start = std::time::Instant::now();
-        let handle = target.sandbox.as_ref()
+        let handle = target
+            .sandbox
+            .as_ref()
             .ok_or_else(|| ValidationError::Other("no sandbox available".into()))?;
 
-        let mut exec = ExecRequest::new(vec!["sh".into(), "-c".into(), "echo 'startup OK' && exit 0".into()]);
+        let mut exec = ExecRequest::new(vec![
+            "sh".into(),
+            "-c".into(),
+            "echo 'startup OK' && exit 0".into(),
+        ]);
         exec.cwd = Some(target.workspace.clone());
-        let stream = handle.exec(&Cap::grant(), exec).await.map_err(|e| ValidationError::Other(e.to_string()))?;
+        let stream = handle
+            .exec(&Cap::grant(), exec)
+            .await
+            .map_err(|e| ValidationError::Other(e.to_string()))?;
         let mut stream = std::pin::pin!(stream);
         let mut exit_code = 0;
         while let Some(event) = stream.next().await {
-            if let ExecEvent::Exit(code) = event.map_err(|e| ValidationError::Other(e.to_string()))? {
+            if let ExecEvent::Exit(code) =
+                event.map_err(|e| ValidationError::Other(e.to_string()))?
+            {
                 exit_code = code;
                 break;
             }
@@ -267,10 +318,23 @@ impl Validator for StartupValidator {
 
         let duration = start.elapsed().as_millis() as u64;
         let passed = exit_code == 0;
-        let findings = if passed { vec![] } else {
-            vec![Finding::new("startup", Severity::Error, "sandbox startup failed", None, None)]
+        let findings = if passed {
+            vec![]
+        } else {
+            vec![Finding::new(
+                "startup",
+                Severity::Error,
+                "sandbox startup failed",
+                None,
+                None,
+            )]
         };
-        Ok(ValidationReport::new(ValidationStage::Startup, findings, passed, duration))
+        Ok(ValidationReport::new(
+            ValidationStage::Startup,
+            findings,
+            passed,
+            duration,
+        ))
     }
 }
 
@@ -279,8 +343,12 @@ pub struct PerformanceValidator;
 
 #[async_trait]
 impl Validator for PerformanceValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::Performance }
-    fn required(&self) -> bool { false }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::Performance
+    }
+    fn required(&self) -> bool {
+        false
+    }
 
     async fn run(
         &self,
@@ -291,24 +359,41 @@ impl Validator for PerformanceValidator {
         let mut findings = vec![];
 
         if let Some(handle) = target.sandbox.as_ref() {
-            let mut exec = ExecRequest::new(vec!["cargo".into(), "build".into(), "--workspace".into()]);
+            let mut exec =
+                ExecRequest::new(vec!["cargo".into(), "build".into(), "--workspace".into()]);
             exec.cwd = Some(target.workspace.clone());
             let build_start = std::time::Instant::now();
-            let stream = handle.exec(&Cap::grant(), exec).await.map_err(|e| ValidationError::Other(e.to_string()))?;
+            let stream = handle
+                .exec(&Cap::grant(), exec)
+                .await
+                .map_err(|e| ValidationError::Other(e.to_string()))?;
             let mut stream = std::pin::pin!(stream);
             while let Some(event) = stream.next().await {
-                if let ExecEvent::Exit(_) = event.map_err(|e| ValidationError::Other(e.to_string()))? {
+                if let ExecEvent::Exit(_) =
+                    event.map_err(|e| ValidationError::Other(e.to_string()))?
+                {
                     break;
                 }
             }
             let build_ms = build_start.elapsed().as_millis() as u64;
             if build_ms > 30_000 {
-                findings.push(Finding::new("perf-build", Severity::Warning, format!("build took {}ms (threshold 30000ms)", build_ms), None, None));
+                findings.push(Finding::new(
+                    "perf-build",
+                    Severity::Warning,
+                    format!("build took {}ms (threshold 30000ms)", build_ms),
+                    None,
+                    None,
+                ));
             }
         }
 
         let duration = start.elapsed().as_millis() as u64;
-        Ok(ValidationReport::new(ValidationStage::Performance, findings, true, duration))
+        Ok(ValidationReport::new(
+            ValidationStage::Performance,
+            findings,
+            true,
+            duration,
+        ))
     }
 }
 
@@ -317,8 +402,12 @@ pub struct RegressionValidator;
 
 #[async_trait]
 impl Validator for RegressionValidator {
-    fn stage(&self) -> ValidationStage { ValidationStage::Regression }
-    fn required(&self) -> bool { false }
+    fn stage(&self) -> ValidationStage {
+        ValidationStage::Regression
+    }
+    fn required(&self) -> bool {
+        false
+    }
 
     async fn run(
         &self,
@@ -329,24 +418,41 @@ impl Validator for RegressionValidator {
         let mut findings = vec![];
 
         if let Some(handle) = target.sandbox.as_ref() {
-            let mut exec = ExecRequest::new(vec!["cargo".into(), "test".into(), "--workspace".into()]);
+            let mut exec =
+                ExecRequest::new(vec!["cargo".into(), "test".into(), "--workspace".into()]);
             exec.cwd = Some(target.workspace.clone());
-            let stream = handle.exec(&Cap::grant(), exec).await.map_err(|e| ValidationError::Other(e.to_string()))?;
+            let stream = handle
+                .exec(&Cap::grant(), exec)
+                .await
+                .map_err(|e| ValidationError::Other(e.to_string()))?;
             let mut stream = std::pin::pin!(stream);
             let mut exit_code = 0;
             while let Some(event) = stream.next().await {
-                if let ExecEvent::Exit(code) = event.map_err(|e| ValidationError::Other(e.to_string()))? {
+                if let ExecEvent::Exit(code) =
+                    event.map_err(|e| ValidationError::Other(e.to_string()))?
+                {
                     exit_code = code;
                     break;
                 }
             }
             if exit_code != 0 {
-                findings.push(Finding::new("regression", Severity::Error, format!("test regression detected (exit {})", exit_code), None, None));
+                findings.push(Finding::new(
+                    "regression",
+                    Severity::Error,
+                    format!("test regression detected (exit {})", exit_code),
+                    None,
+                    None,
+                ));
             }
         }
 
         let duration = start.elapsed().as_millis() as u64;
         let passed = findings.is_empty();
-        Ok(ValidationReport::new(ValidationStage::Regression, findings, passed, duration))
+        Ok(ValidationReport::new(
+            ValidationStage::Regression,
+            findings,
+            passed,
+            duration,
+        ))
     }
 }

@@ -46,8 +46,18 @@ pub struct Checkpoint {
 
 impl Checkpoint {
     /// Create a new checkpoint.
-    pub fn new(id: CheckpointId, session: SessionId, created_at: OffsetDateTime, state: SessionState) -> Self {
-        Self { id, session, created_at, state }
+    pub fn new(
+        id: CheckpointId,
+        session: SessionId,
+        created_at: OffsetDateTime,
+        state: SessionState,
+    ) -> Self {
+        Self {
+            id,
+            session,
+            created_at,
+            state,
+        }
     }
 }
 
@@ -97,7 +107,10 @@ pub struct StuckSignal {
 impl StuckSignal {
     /// Create a new stuck signal.
     pub fn new(reason: StuckReason, detail: impl Into<String>) -> Self {
-        Self { reason, detail: detail.into() }
+        Self {
+            reason,
+            detail: detail.into(),
+        }
     }
 }
 

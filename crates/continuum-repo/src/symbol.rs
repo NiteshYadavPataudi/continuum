@@ -155,47 +155,73 @@ fn extract_typescript_symbols(path: &Path, source: &str) -> Vec<SymbolNode> {
 }
 
 fn extract_python_symbols(path: &Path, source: &str) -> Vec<SymbolNode> {
-    let re = Regex::new(r"(?m)^[[:space:]]*(?:async[[:space:]]+)?def[[:space:]]+([a-zA-Z_]\w*)\s*\(")
-        .expect("valid regex");
-    let class_re = Regex::new(r"(?m)^[[:space:]]*class[[:space:]]+([a-zA-Z_]\w*)")
-        .expect("valid regex");
+    let re =
+        Regex::new(r"(?m)^[[:space:]]*(?:async[[:space:]]+)?def[[:space:]]+([a-zA-Z_]\w*)\s*\(")
+            .expect("valid regex");
+    let class_re =
+        Regex::new(r"(?m)^[[:space:]]*class[[:space:]]+([a-zA-Z_]\w*)").expect("valid regex");
     let mut symbols = Vec::new();
 
     for cap in re.captures_iter(source) {
         let matched = cap.get(0).unwrap();
         let line = source[..matched.start()].matches('\n').count() as u32 + 1;
         symbols.push(SymbolNode {
-            symbol: SymbolRef { qualified: cap.get(1).unwrap().as_str().to_string(), file: path.to_path_buf(), line },
-            kind: "fn".into(), end_line: line, doc_comment: None,
+            symbol: SymbolRef {
+                qualified: cap.get(1).unwrap().as_str().to_string(),
+                file: path.to_path_buf(),
+                line,
+            },
+            kind: "fn".into(),
+            end_line: line,
+            doc_comment: None,
         });
     }
     for cap in class_re.captures_iter(source) {
         let matched = cap.get(0).unwrap();
         let line = source[..matched.start()].matches('\n').count() as u32 + 1;
         symbols.push(SymbolNode {
-            symbol: SymbolRef { qualified: cap.get(1).unwrap().as_str().to_string(), file: path.to_path_buf(), line },
-            kind: "class".into(), end_line: line, doc_comment: None,
+            symbol: SymbolRef {
+                qualified: cap.get(1).unwrap().as_str().to_string(),
+                file: path.to_path_buf(),
+                line,
+            },
+            kind: "class".into(),
+            end_line: line,
+            doc_comment: None,
         });
     }
     symbols
 }
 
 fn extract_go_symbols(path: &Path, source: &str) -> Vec<SymbolNode> {
-    let func_re = Regex::new(r"(?m)^[[:space:]]*func[[:space:]]+(?:\([^)]*\)[[:space:]]+)?([A-Za-z_]\w*)")
-        .expect("valid regex");
-    let struct_re = Regex::new(r"(?m)^[[:space:]]*type[[:space:]]+([A-Za-z_]\w*)[[:space:]]+struct")
-        .expect("valid regex");
-    let iface_re = Regex::new(r"(?m)^[[:space:]]*type[[:space:]]+([A-Za-z_]\w*)[[:space:]]+interface")
-        .expect("valid regex");
+    let func_re =
+        Regex::new(r"(?m)^[[:space:]]*func[[:space:]]+(?:\([^)]*\)[[:space:]]+)?([A-Za-z_]\w*)")
+            .expect("valid regex");
+    let struct_re =
+        Regex::new(r"(?m)^[[:space:]]*type[[:space:]]+([A-Za-z_]\w*)[[:space:]]+struct")
+            .expect("valid regex");
+    let iface_re =
+        Regex::new(r"(?m)^[[:space:]]*type[[:space:]]+([A-Za-z_]\w*)[[:space:]]+interface")
+            .expect("valid regex");
     let mut symbols = Vec::new();
 
-    for (re, kind) in &[(func_re, "fn"), (struct_re, "struct"), (iface_re, "interface")] {
+    for (re, kind) in &[
+        (func_re, "fn"),
+        (struct_re, "struct"),
+        (iface_re, "interface"),
+    ] {
         for cap in re.captures_iter(source) {
             let matched = cap.get(0).unwrap();
             let line = source[..matched.start()].matches('\n').count() as u32 + 1;
             symbols.push(SymbolNode {
-                symbol: SymbolRef { qualified: cap.get(1).unwrap().as_str().to_string(), file: path.to_path_buf(), line },
-                kind: kind.to_string(), end_line: line, doc_comment: None,
+                symbol: SymbolRef {
+                    qualified: cap.get(1).unwrap().as_str().to_string(),
+                    file: path.to_path_buf(),
+                    line,
+                },
+                kind: kind.to_string(),
+                end_line: line,
+                doc_comment: None,
             });
         }
     }

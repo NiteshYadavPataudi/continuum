@@ -9,7 +9,9 @@ use continuum_core::ids::{AgentId, ModelId};
 use continuum_core::model::ModelProvider;
 use continuum_core::validator::{Finding, Severity};
 use continuum_core::CancellationToken;
-use continuum_security::{AuditReportBuilder, ComplianceAttestation, HardeningMode, SecurityPolicy};
+use continuum_security::{
+    AuditReportBuilder, ComplianceAttestation, HardeningMode, SecurityPolicy,
+};
 
 /// Security audit / hardening agent. Implements the three hardening modes.
 pub struct SecurityAgent {
@@ -58,27 +60,35 @@ impl Agent for SecurityAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         _cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
+        ctx.task_progress(AgentKind::Security, "starting security audit", Some(10));
 
         // Extract mode from payload
         let mode_str = payload
             .get("mode")
             .and_then(|v| v.as_str())
             .unwrap_or("audit");
-        let mode: HardeningMode = mode_str.parse().map_err(|e: String| {
-            AgentError::Other(format!("invalid hardening mode: {e}"))
-        })?;
-        let suggest = payload.get("suggest").and_then(|v| v.as_bool()).unwrap_or(false);
-        let exit_code = payload.get("exit_code").and_then(|v| v.as_bool()).unwrap_or(true);
+        let mode: HardeningMode = mode_str
+            .parse()
+            .map_err(|e: String| AgentError::Other(format!("invalid hardening mode: {e}")))?;
+        let suggest = payload
+            .get("suggest")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let exit_code = payload
+            .get("exit_code")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
 
         let policy = SecurityPolicy::new(mode);
         let severity_floor = policy.severity_floor();
         let mut report_builder = AuditReportBuilder::new(mode_str);
 
         // Discover available security tools
+        ctx.task_progress(AgentKind::Security, "running scanners", Some(35));
         let findings = run_security_tools();
 
         // Filter by severity floor
@@ -88,6 +98,7 @@ impl Agent for SecurityAgent {
             .collect();
 
         report_builder.add_findings(filtered.clone());
+        ctx.task_progress(AgentKind::Security, "assembling report", Some(75));
 
         let mut artifacts = serde_json::json!({
             "status": "audited",
@@ -112,14 +123,15 @@ impl Agent for SecurityAgent {
         // Enterprise mode: compliance attestation
         if mode == HardeningMode::Enterprise {
             let compliance = ComplianceAttestation::build();
-            artifacts["compliance_md"] =
-                serde_json::Value::String(compliance.to_markdown());
+            artifacts["compliance_md"] = serde_json::Value::String(compliance.to_markdown());
         }
 
         // Exit code: signal findings above floor
         if exit_code && !filtered.is_empty() {
             artifacts["exit_code"] = serde_json::json!(1);
         }
+
+        ctx.task_progress(AgentKind::Security, "finalizing audit", Some(95));
 
         Ok(AgentOutcome::new(artifacts))
     }
@@ -231,7 +243,10 @@ fn run_trivy() -> Vec<Finding> {
                                 "MEDIUM" | "LOW" => Severity::Warning,
                                 _ => Severity::Info,
                             };
-                            let vuln_id = v.get("VulnerabilityID").and_then(|s| s.as_str()).unwrap_or("?");
+                            let vuln_id = v
+                                .get("VulnerabilityID")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("?");
                             let title = v.get("Title").and_then(|s| s.as_str()).unwrap_or("");
                             findings.push(Finding::new(
                                 "trivy",

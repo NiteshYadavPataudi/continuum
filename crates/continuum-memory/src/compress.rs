@@ -18,7 +18,10 @@ impl Compressor {
     }
 
     /// Compress memory items matching `scope`, returning a summary report.
-    pub async fn compress(&mut self, scope: CompressionScope) -> Result<CompressionReport, MemoryError> {
+    pub async fn compress(
+        &mut self,
+        scope: CompressionScope,
+    ) -> Result<CompressionReport, MemoryError> {
         let run_id = "session-0";
         let hot_items = self
             .repo
@@ -39,7 +42,11 @@ impl Compressor {
                     let summary = format!(
                         "summary of {} items: {}",
                         chunk.len(),
-                        chunk.iter().map(|r| r.summary.as_str()).collect::<Vec<_>>().join("; ")
+                        chunk
+                            .iter()
+                            .map(|r| r.summary.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; ")
                     );
                     let total_tokens: i32 = chunk.iter().map(|r| r.token_count).sum();
                     let _ = self

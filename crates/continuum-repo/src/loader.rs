@@ -57,9 +57,13 @@ impl RepoLoader for Loader {
             paths.push(path.to_path_buf());
         }
 
-        let mtimes: HashMap<PathBuf, SystemTime> = paths.iter()
+        let mtimes: HashMap<PathBuf, SystemTime> = paths
+            .iter()
             .filter_map(|p| {
-                std::fs::metadata(p).ok().and_then(|m| m.modified().ok()).map(|t| (p.clone(), t))
+                std::fs::metadata(p)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| (p.clone(), t))
             })
             .collect();
 
@@ -120,11 +124,14 @@ impl RepoLoader for Loader {
             return self.build(&self.root, opts).await.map(|_| ());
         };
 
-        let changed: Vec<PathBuf> = paths.iter()
+        let changed: Vec<PathBuf> = paths
+            .iter()
             .filter(|p| {
                 let current = std::fs::metadata(p).ok().and_then(|m| m.modified().ok());
                 let stored = old_index.mtimes.get(p.as_path());
-                current.map(|c| stored.map_or(true, |s| c != *s)).unwrap_or(true)
+                current
+                    .map(|c| stored.map_or(true, |s| c != *s))
+                    .unwrap_or(true)
             })
             .cloned()
             .collect();

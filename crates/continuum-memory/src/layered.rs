@@ -87,11 +87,8 @@ impl MemoryStore for LayeredMemory {
             .await
             .map_err(|e| MemoryError::Storage(e.to_string()))?;
         Ok(row.map(|r| {
-            MemoryItem::new(
-                MemoryId::from(Uuid::parse_str(&r.id).unwrap()),
-                r.detail,
-            )
-            .with_tokens(r.token_count as u32)
+            MemoryItem::new(MemoryId::from(Uuid::parse_str(&r.id).unwrap()), r.detail)
+                .with_tokens(r.token_count as u32)
         }))
     }
 

@@ -31,6 +31,7 @@ impl ToolRunner for CargoAudit {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting cargo audit", Some(5));
 
         let argv = vec!["cargo".into(), "audit".into()];
 
@@ -41,6 +42,7 @@ impl ToolRunner for CargoAudit {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("cargo audit launched", Some(20));
 
         let mut stdout = Vec::new();
         let mut exit_code = 0;
@@ -55,11 +57,13 @@ impl ToolRunner for CargoAudit {
                 _ => {}
             }
         }
+        invocation.tool_progress("cargo audit finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let output = String::from_utf8_lossy(&stdout);
         let findings = parse_audit_output(&output);
 
+        invocation.tool_completed(format!("cargo audit finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

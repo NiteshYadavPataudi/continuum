@@ -38,7 +38,8 @@ impl ComplianceAttestation {
         controls.insert(
             "CC6.1".into(),
             ControlStatus {
-                description: "Logical and physical access to information assets is restricted.".into(),
+                description: "Logical and physical access to information assets is restricted."
+                    .into(),
                 status: ControlState::Met,
                 citation: ".continuum/config + sandbox network=none for audit mode".into(),
             },
@@ -48,7 +49,8 @@ impl ComplianceAttestation {
             ControlStatus {
                 description: "Users are provisioned, authenticated, and de-provisioned.".into(),
                 status: ControlState::Met,
-                citation: "Capability token system (continuum-core::caps) gates API key access".into(),
+                citation: "Capability token system (continuum-core::caps) gates API key access"
+                    .into(),
             },
         );
 
@@ -76,7 +78,8 @@ impl ComplianceAttestation {
             ControlStatus {
                 description: "Security incidents are detected and responded to.".into(),
                 status: ControlState::NotMet,
-                citation: "Continuum does not currently implement automated incident response".into(),
+                citation: "Continuum does not currently implement automated incident response"
+                    .into(),
             },
         );
 
@@ -98,7 +101,9 @@ impl ComplianceAttestation {
         let mut md = String::new();
         md.push_str("# Compliance Attestation\n\n");
         md.push_str("This document maps Continuum's security controls to SOC2 criteria.\n\n");
-        md.push_str("> **Disclaimer:** This is a self-assessment. It is not a certified SOC2 report.\n\n");
+        md.push_str(
+            "> **Disclaimer:** This is a self-assessment. It is not a certified SOC2 report.\n\n",
+        );
         md.push_str("| Control | Description | Status | Citation |\n");
         md.push_str("|---------|-------------|--------|----------|\n");
         for (id, ctrl) in &self.controls {
@@ -107,7 +112,10 @@ impl ComplianceAttestation {
                 ControlState::NotMet => "❌ not-met",
                 ControlState::Na => "— n/a",
             };
-            md.push_str(&format!("| **{id}** | {} | {status_str} | `{}` |\n", ctrl.description, ctrl.citation));
+            md.push_str(&format!(
+                "| **{id}** | {} | {status_str} | `{}` |\n",
+                ctrl.description, ctrl.citation
+            ));
         }
         md.push('\n');
         md

@@ -29,6 +29,7 @@ impl ToolRunner for Trivy {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting trivy", Some(5));
 
         let argv = vec![
             "trivy".into(),
@@ -43,6 +44,7 @@ impl ToolRunner for Trivy {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("trivy launched", Some(20));
 
         let mut stdout = Vec::new();
         let mut exit_code = 0;
@@ -57,11 +59,13 @@ impl ToolRunner for Trivy {
                 _ => {}
             }
         }
+        invocation.tool_progress("trivy finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let output = String::from_utf8_lossy(&stdout);
         let findings = parse_trivy_output(&output);
 
+        invocation.tool_completed(format!("trivy finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

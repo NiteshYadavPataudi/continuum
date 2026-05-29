@@ -1,4 +1,4 @@
-use continuum_core::caps::{Cap, CallModels, HostExec};
+use continuum_core::caps::{CallModels, Cap, HostExec};
 
 #[test]
 fn test_cap_grant_and_use() {

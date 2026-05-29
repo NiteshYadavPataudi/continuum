@@ -32,6 +32,7 @@ impl ToolRunner for Clippy {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting clippy", Some(5));
 
         let mut argv = vec![
             "cargo".into(),
@@ -52,6 +53,7 @@ impl ToolRunner for Clippy {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("clippy process launched", Some(20));
 
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -69,11 +71,13 @@ impl ToolRunner for Clippy {
                 _ => {}
             }
         }
+        invocation.tool_progress("clippy process finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let output = String::from_utf8_lossy(&stdout);
         let findings = parse_clippy_json(&output);
 
+        invocation.tool_completed(format!("clippy finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }
@@ -141,7 +145,10 @@ fn parse_clippy_json(output: &str) -> Vec<Finding> {
         };
 
         let span = diag.spans.and_then(|s| s.into_iter().next());
-        let file = span.as_ref().and_then(|s| s.file_name.clone()).map(std::path::PathBuf::from);
+        let file = span
+            .as_ref()
+            .and_then(|s| s.file_name.clone())
+            .map(std::path::PathBuf::from);
         let line = span.and_then(|s| s.line_start);
 
         findings.push(Finding::new(

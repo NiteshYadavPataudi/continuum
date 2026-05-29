@@ -2,9 +2,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bollard::container::{Config, DownloadFromContainerOptions, LogOutput, UploadToContainerOptions};
-use bollard::image::CommitContainerOptions;
+use bollard::container::{
+    Config, DownloadFromContainerOptions, LogOutput, UploadToContainerOptions,
+};
 use bollard::exec::{CreateExecOptions, StartExecResults};
+use bollard::image::CommitContainerOptions;
 use bollard::Docker;
 use futures::stream::BoxStream;
 use futures::{StreamExt, TryStreamExt};
@@ -43,10 +45,7 @@ impl Sandbox for DockerSandbox {
             image: Some(image.clone()),
             working_dir: Some("/workspace".into()),
             host_config: Some(bollard::models::HostConfig {
-                binds: Some(vec![format!(
-                    "{}:/workspace",
-                    spec.workspace.display()
-                )]),
+                binds: Some(vec![format!("{}:/workspace", spec.workspace.display())]),
                 cpu_quota: Some((spec.cpu_quota * 100_000.0) as i64),
                 memory: Some(spec.memory_mb as i64 * 1024 * 1024),
                 network_mode: if spec.network_egress {
@@ -100,7 +99,11 @@ impl SandboxHandle for DockerHandle {
         self.id
     }
 
-    async fn exec(&self, _cap: &Cap<HostExec>, cmd: ExecRequest) -> Result<ExecStream, SandboxError> {
+    async fn exec(
+        &self,
+        _cap: &Cap<HostExec>,
+        cmd: ExecRequest,
+    ) -> Result<ExecStream, SandboxError> {
         let exec = self
             .client
             .create_exec(
@@ -110,12 +113,7 @@ impl SandboxHandle for DockerHandle {
                     attach_stderr: Some(true),
                     cmd: Some(cmd.argv),
                     working_dir: cmd.cwd.as_ref().map(|p| p.display().to_string()),
-                    env: Some(
-                        cmd.env
-                            .iter()
-                            .map(|(k, v)| format!("{k}={v}"))
-                            .collect(),
-                    ),
+                    env: Some(cmd.env.iter().map(|(k, v)| format!("{k}={v}")).collect()),
                     ..Default::default()
                 },
             )
@@ -131,21 +129,13 @@ impl SandboxHandle for DockerHandle {
         let stream: BoxStream<'static, Result<ExecEvent, SandboxError>> = match output {
             StartExecResults::Attached { output, .. } => output
                 .map(|item| match item {
-                    Ok(LogOutput::StdOut { message }) => {
-                        Ok(ExecEvent::Stdout(message.to_vec()))
-                    }
-                    Ok(LogOutput::StdErr { message }) => {
-                        Ok(ExecEvent::Stderr(message.to_vec()))
-                    }
-                    Ok(LogOutput::Console { message }) => {
-                        Ok(ExecEvent::Stdout(message.to_vec()))
-                    }
+                    Ok(LogOutput::StdOut { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
+                    Ok(LogOutput::StdErr { message }) => Ok(ExecEvent::Stderr(message.to_vec())),
+                    Ok(LogOutput::Console { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
                     Ok(LogOutput::StdIn { .. }) => Ok(ExecEvent::Stdout(Vec::new())),
                     Err(e) => Err(SandboxError::Other(e.to_string())),
                 })
-                .chain(futures::stream::once(async {
-                    Ok(ExecEvent::Exit(0))
-                }))
+                .chain(futures::stream::once(async { Ok(ExecEvent::Exit(0)) }))
                 .boxed(),
             StartExecResults::Detached => {
                 return Err(SandboxError::Other("exec detached unexpectedly".into()));
@@ -165,7 +155,8 @@ impl SandboxHandle for DockerHandle {
             header.set_cksum();
             ar.append_data(&mut header, path, bytes)
                 .map_err(|e| SandboxError::Fs(format!("tar append: {e}")))?;
-            ar.finish().map_err(|e| SandboxError::Fs(format!("tar finish: {e}")))?;
+            ar.finish()
+                .map_err(|e| SandboxError::Fs(format!("tar finish: {e}")))?;
         }
 
         self.client
@@ -186,7 +177,9 @@ impl SandboxHandle for DockerHandle {
     async fn read_file(&self, path: &Path) -> Result<Vec<u8>, SandboxError> {
         let stream = self.client.download_from_container(
             &self.container_id,
-            Some(DownloadFromContainerOptions { path: path.display().to_string() }),
+            Some(DownloadFromContainerOptions {
+                path: path.display().to_string(),
+            }),
         );
 
         let bytes: Vec<u8> = stream
@@ -198,7 +191,11 @@ impl SandboxHandle for DockerHandle {
             .collect();
 
         let mut ar = tar::Archive::new(&bytes[..]);
-        if let Some(entry) = ar.entries().map_err(|e| SandboxError::Fs(format!("tar entries: {e}")))?.next() {
+        if let Some(entry) = ar
+            .entries()
+            .map_err(|e| SandboxError::Fs(format!("tar entries: {e}")))?
+            .next()
+        {
             let mut entry = entry.map_err(|e| SandboxError::Fs(format!("tar entry: {e}")))?;
             let mut data = Vec::new();
             std::io::Read::read_to_end(&mut entry, &mut data)

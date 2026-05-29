@@ -25,7 +25,11 @@ impl<S> Layer<S> for ReplayLayer
 where
     S: tracing::Subscriber + for<'span> LookupSpan<'span>,
 {
-    fn on_event(&self, event: &tracing::Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
         let mut fields = serde_json::Map::new();
         let mut visitor = JsonVisitor(&mut fields);
         event.record(&mut visitor);
@@ -48,8 +52,10 @@ struct JsonVisitor<'a>(&'a mut serde_json::Map<String, serde_json::Value>);
 
 impl<'a> tracing::field::Visit for JsonVisitor<'a> {
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.0
-            .insert(field.name().to_string(), serde_json::Value::String(value.to_string()));
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     }
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
@@ -60,13 +66,17 @@ impl<'a> tracing::field::Visit for JsonVisitor<'a> {
     }
 
     fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.0
-            .insert(field.name().to_string(), serde_json::Value::Number(value.into()));
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
     }
 
     fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.0
-            .insert(field.name().to_string(), serde_json::Value::Number(value.into()));
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
     }
 
     fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {

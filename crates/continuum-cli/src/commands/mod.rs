@@ -18,21 +18,21 @@ pub mod rollback;
 
 type CmdResult = Result<(), Box<dyn std::error::Error>>;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InitArgs {
     /// Force overwriting existing engineering docs.
     #[arg(long)]
     pub force: bool,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct AnalyzeArgs {
     /// Path to the repository to analyze. Defaults to the project directory.
     #[arg(long)]
     pub path: Option<PathBuf>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct ExecuteArgs {
     /// Goal prompt (natural language).
     pub goal: Option<String>,
@@ -48,16 +48,19 @@ pub struct ExecuteArgs {
     /// Disable the live TUI dashboard (use plain terminal output).
     #[arg(long)]
     pub no_tui: bool,
+    /// Follow the execution live in the full-screen TUI.
+    #[arg(long)]
+    pub follow_tui: bool,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct ResumeArgs {
     /// Session ID to resume. If omitted, resumes the most recent session.
     #[arg(long)]
     pub session: Option<String>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct HardenArgs {
     /// Hardening mode: `audit`, `hardening`, or `enterprise`.
     #[arg(long, default_value = "audit")]
@@ -67,7 +70,7 @@ pub struct HardenArgs {
     pub project: Option<std::path::PathBuf>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct ReplayArgs {
     /// Session ID to replay.
     pub session: String,
@@ -76,7 +79,7 @@ pub struct ReplayArgs {
     pub from: Option<String>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct RollbackArgs {
     /// Session ID to roll back.
     pub session: String,
@@ -85,7 +88,7 @@ pub struct RollbackArgs {
     pub to: Option<String>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct DoctorArgs {
     /// Try to fix detected issues automatically.
     #[arg(long)]
@@ -98,20 +101,20 @@ pub struct DoctorArgs {
     pub project: Option<PathBuf>,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct BenchmarkArgs {
     /// Benchmark category: `validation`, `planner`, `memory`, `all`.
     #[arg(long, default_value = "all")]
     pub category: String,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct MemoryArgs {
     /// Subverb: `list`, `compress`, `purge`.
     pub action: String,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct InstallArgs {
     /// Skip Docker setup.
     #[arg(long)]
@@ -119,13 +122,13 @@ pub struct InstallArgs {
 }
 
 /// `continuum config` — read and write provider API keys and settings.
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct ConfigArgs {
     #[command(subcommand)]
     pub command: ConfigSubcommand,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 pub enum ConfigSubcommand {
     /// Set a config value: `set <provider>.<field> <value>`
     ///

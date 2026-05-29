@@ -14,9 +14,8 @@ pub async fn run(args: MemoryArgs) -> CmdResult {
     let memory_repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
     let vector = continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
 
-    let memory: Arc<dyn MemoryStore> = Arc::new(
-        continuum_memory::LayeredMemory::new(memory_repo, vector),
-    );
+    let memory: Arc<dyn MemoryStore> =
+        Arc::new(continuum_memory::LayeredMemory::new(memory_repo, vector));
 
     match args.action.as_str() {
         "list" => {

@@ -61,7 +61,7 @@ impl Agent for PlannerAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
@@ -77,8 +77,10 @@ impl Agent for PlannerAgent {
             .get("task_history")
             .cloned()
             .unwrap_or(serde_json::json!([]));
+        ctx.task_progress(AgentKind::Planner, "replanning started", Some(10));
 
         let (revised_tasks, reasoning) = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Planner, "calling model", Some(25));
             let prompt = format!(
                 r#"You are a re-planning agent. The current execution plan is stuck.
 
@@ -101,10 +103,8 @@ Return ONLY valid JSON (no markdown fences):
                 history = task_history,
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
                 .await
@@ -117,6 +117,7 @@ Return ONLY valid JSON (no markdown fences):
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Planner, "model response received", Some(75));
 
             let json = parse_json_response(&raw);
             let reasoning = json
@@ -124,16 +125,23 @@ Return ONLY valid JSON (no markdown fences):
                 .and_then(|v| v.as_str())
                 .unwrap_or("Revised plan generated.")
                 .to_string();
-            let tasks = json.get("revised_tasks").cloned().unwrap_or(serde_json::json!([]));
+            let tasks = json
+                .get("revised_tasks")
+                .cloned()
+                .unwrap_or(serde_json::json!([]));
             (tasks, reasoning)
         } else {
             (
                 serde_json::json!([
                     { "agent": "Coding", "label": format!("Retry: {original_goal}"), "depends_on": [] }
                 ]),
-                format!("No model available — defaulting to single Coding retry for: {original_goal}"),
+                format!(
+                    "No model available — defaulting to single Coding retry for: {original_goal}"
+                ),
             )
         };
+
+        ctx.task_progress(AgentKind::Planner, "finalizing revised plan", Some(95));
 
         Ok(AgentOutcome::new(serde_json::json!({
             "status": "replanned",

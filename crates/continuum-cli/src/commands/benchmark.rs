@@ -46,7 +46,11 @@ async fn bench_planner(
     println!("\n── Planner benchmarks ──\n");
 
     let engine = continuum_planner::PlanningEngine::default();
-    let goals = ["implement the next feature", "add authentication", "refactor the core module"];
+    let goals = [
+        "implement the next feature",
+        "add authentication",
+        "refactor the core module",
+    ];
 
     for goal_text in &goals {
         let goal = Goal::new(*goal_text);
@@ -73,8 +77,16 @@ async fn bench_planner(
         let estimate_ms = start.elapsed().as_secs_f64() * 1000.0;
 
         println!("  goal: {goal_text}");
-        println!("    analyze  {:8.1} ms  {} services", analysis_ms, analysis.services.len());
-        println!("    plan     {:8.1} ms  {} nodes", plan_ms, plan.nodes.len());
+        println!(
+            "    analyze  {:8.1} ms  {} services",
+            analysis_ms,
+            analysis.services.len()
+        );
+        println!(
+            "    plan     {:8.1} ms  {} nodes",
+            plan_ms,
+            plan.nodes.len()
+        );
         println!(
             "    estimate {:8.1} ms  {:.2}s / ${:.4}",
             estimate_ms, estimate.runtime_secs, estimate.usd
@@ -96,19 +108,45 @@ async fn bench_validation(root: &std::path::Path) -> CmdResult {
     let start = Instant::now();
     use std::process::Command;
     let output = Command::new("cargo")
-        .args(["check", "--manifest-path", &fixture.join("Cargo.toml").display().to_string()])
+        .args([
+            "check",
+            "--manifest-path",
+            &fixture.join("Cargo.toml").display().to_string(),
+        ])
         .output()
         .map_err(|e| format!("cargo check failed: {e}"))?;
     let check_ms = start.elapsed().as_millis();
-    println!("  cargo check  {:8} ms  {}", check_ms, if output.status.success() { "OK" } else { "FAIL" });
+    println!(
+        "  cargo check  {:8} ms  {}",
+        check_ms,
+        if output.status.success() {
+            "OK"
+        } else {
+            "FAIL"
+        }
+    );
 
     let start = Instant::now();
     let output = Command::new("cargo")
-        .args(["test", "--manifest-path", &fixture.join("Cargo.toml").display().to_string(), "--", "--quiet"])
+        .args([
+            "test",
+            "--manifest-path",
+            &fixture.join("Cargo.toml").display().to_string(),
+            "--",
+            "--quiet",
+        ])
         .output()
         .map_err(|e| format!("cargo test failed: {e}"))?;
     let test_ms = start.elapsed().as_millis();
-    println!("  cargo test  {:8} ms  {}", test_ms, if output.status.success() { "OK" } else { "FAIL" });
+    println!(
+        "  cargo test  {:8} ms  {}",
+        test_ms,
+        if output.status.success() {
+            "OK"
+        } else {
+            "FAIL"
+        }
+    );
 
     println!();
     Ok(())
@@ -121,14 +159,24 @@ async fn bench_memory() -> CmdResult {
     for i in 0..1000 {
         let id = continuum_core::ids::MemoryId::new();
         let vec = vec![i as f32 / 1000.0; 128];
-        store.upsert(id, vec).await.map_err(|e| format!("upsert failed: {e}"))?;
+        store
+            .upsert(id, vec)
+            .await
+            .map_err(|e| format!("upsert failed: {e}"))?;
     }
     let insert_ms = start.elapsed().as_micros() as f64 / 1000.0;
-    println!("  upsert 1000 vectors  {:8.1} ms  {:.1} µs/item", insert_ms, insert_ms * 1000.0 / 1000.0);
+    println!(
+        "  upsert 1000 vectors  {:8.1} ms  {:.1} µs/item",
+        insert_ms,
+        insert_ms * 1000.0 / 1000.0
+    );
 
     let start = Instant::now();
     let query = vec![0.5f32; 128];
-    let _results = store.search(&query, 10).await.map_err(|e| format!("search failed: {e}"))?;
+    let _results = store
+        .search(&query, 10)
+        .await
+        .map_err(|e| format!("search failed: {e}"))?;
     let search_ms = start.elapsed().as_micros() as f64 / 1000.0;
     println!("  search 10/1000      {:8.1} ms", search_ms);
     println!();

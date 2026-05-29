@@ -30,9 +30,18 @@ impl ToolRunner for ChromiumoxideRunner {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting chromiumoxide", Some(5));
 
-        let url = invocation.args.get("url").and_then(|v| v.as_str()).unwrap_or("about:blank");
-        let script = invocation.args.get("script").and_then(|v| v.as_str()).unwrap_or("");
+        let url = invocation
+            .args
+            .get("url")
+            .and_then(|v| v.as_str())
+            .unwrap_or("about:blank");
+        let script = invocation
+            .args
+            .get("script")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         let node_script = format!(
             r#"const puppeteer = require('puppeteer');
@@ -52,6 +61,7 @@ impl ToolRunner for ChromiumoxideRunner {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("chromiumoxide launched", Some(20));
 
         let mut exit_code = 0;
         let mut stream = std::pin::pin!(stream);
@@ -64,13 +74,21 @@ impl ToolRunner for ChromiumoxideRunner {
                 _ => {}
             }
         }
+        invocation.tool_progress("chromiumoxide finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let findings = if exit_code == 0 {
             vec![]
         } else {
-            vec![Finding::new("chromiumoxide", continuum_core::validator::Severity::Error, "browser automation failed", None, None)]
+            vec![Finding::new(
+                "chromiumoxide",
+                continuum_core::validator::Severity::Error,
+                "browser automation failed",
+                None,
+                None,
+            )]
         };
+        invocation.tool_completed(format!("chromiumoxide finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

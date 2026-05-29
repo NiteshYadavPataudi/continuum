@@ -49,7 +49,10 @@ pub async fn contract(
     if !planning_nodes.is_empty() {
         summary.push("── Planning ──".into());
         for n in planning_nodes {
-            summary.push(format!("  Step {} — [{:?}] {}", step, n.agent_kind, n.label));
+            summary.push(format!(
+                "  Step {} — [{:?}] {}",
+                step, n.agent_kind, n.label
+            ));
             step += 1;
         }
     }
@@ -57,7 +60,10 @@ pub async fn contract(
     if !impl_nodes.is_empty() {
         summary.push("── Implementation ──".into());
         for n in impl_nodes {
-            summary.push(format!("  Step {} — [{:?}] {}", step, n.agent_kind, n.label));
+            summary.push(format!(
+                "  Step {} — [{:?}] {}",
+                step, n.agent_kind, n.label
+            ));
             step += 1;
         }
     }
@@ -65,7 +71,10 @@ pub async fn contract(
     if !validation_nodes.is_empty() {
         summary.push("── Validation ──".into());
         for n in validation_nodes {
-            summary.push(format!("  Step {} — [{:?}] {}", step, n.agent_kind, n.label));
+            summary.push(format!(
+                "  Step {} — [{:?}] {}",
+                step, n.agent_kind, n.label
+            ));
             step += 1;
         }
     }
@@ -73,7 +82,10 @@ pub async fn contract(
     if !review_nodes.is_empty() {
         summary.push("── Review ──".into());
         for n in review_nodes {
-            summary.push(format!("  Step {} — [{:?}] {}", step, n.agent_kind, n.label));
+            summary.push(format!(
+                "  Step {} — [{:?}] {}",
+                step, n.agent_kind, n.label
+            ));
             step += 1;
         }
     }
@@ -81,10 +93,7 @@ pub async fn contract(
     // Footer.
     summary.push(format!(
         "── Totals: {} tokens in / {} tokens out / {}s / ${:.4} ──",
-        estimate.input_tokens,
-        estimate.output_tokens,
-        estimate.runtime_secs,
-        estimate.usd,
+        estimate.input_tokens, estimate.output_tokens, estimate.runtime_secs, estimate.usd,
     ));
 
     let mut contract = ExecutionContract::default();

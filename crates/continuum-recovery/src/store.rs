@@ -8,8 +8,8 @@ use continuum_core::recovery::{
     Checkpoint, RecoveryError, RecoveryStore, ReplayEvent, ReplayStream, SessionState, StuckReason,
     StuckSignal,
 };
-use continuum_storage::{CheckpointRepo, HeartbeatRepo, MemoryRepo, ReplayEventRepo};
 use continuum_storage::VectorBackend;
+use continuum_storage::{CheckpointRepo, HeartbeatRepo, MemoryRepo, ReplayEventRepo};
 
 /// SQLite-backed recovery store: checkpoints, heartbeats, and replay events.
 pub struct SqliteRecovery {
@@ -90,14 +90,17 @@ impl RecoveryStore for SqliteRecovery {
         let state: SessionState = serde_json::from_slice(&row.snapshot)
             .map_err(|e| RecoveryError::Other(format!("deserialize state: {e}")))?;
 
-        let ckpt_id = CheckpointId::from(
-            uuid::Uuid::parse_str(&row.id).unwrap_or(uuid::Uuid::nil()),
-        );
-        let sess_id = SessionId::from(
-            uuid::Uuid::parse_str(&row.run_id).unwrap_or(uuid::Uuid::nil()),
-        );
+        let ckpt_id =
+            CheckpointId::from(uuid::Uuid::parse_str(&row.id).unwrap_or(uuid::Uuid::nil()));
+        let sess_id =
+            SessionId::from(uuid::Uuid::parse_str(&row.run_id).unwrap_or(uuid::Uuid::nil()));
 
-        Ok(Some(Checkpoint::new(ckpt_id, sess_id, OffsetDateTime::now_utc(), state)))
+        Ok(Some(Checkpoint::new(
+            ckpt_id,
+            sess_id,
+            OffsetDateTime::now_utc(),
+            state,
+        )))
     }
 
     async fn rollback(&self, to: CheckpointId) -> Result<SessionState, RecoveryError> {
@@ -122,7 +125,10 @@ impl RecoveryStore for SqliteRecovery {
         let _ = from;
         let session_id = session.to_string();
         let events = self.events.clone();
-        let rows = events.list_by_session(&session_id, None).await.unwrap_or_default();
+        let rows = events
+            .list_by_session(&session_id, None)
+            .await
+            .unwrap_or_default();
         let items: Vec<Result<ReplayEvent, RecoveryError>> = rows
             .into_iter()
             .map(|row| {
@@ -142,7 +148,10 @@ impl RecoveryStore for SqliteRecovery {
             .map_err(|e| RecoveryError::Storage(e.to_string()))?;
 
         match hb {
-            None => Ok(Some(StuckSignal::new(StuckReason::NoHeartbeat, "no heartbeat ever recorded"))),
+            None => Ok(Some(StuckSignal::new(
+                StuckReason::NoHeartbeat,
+                "no heartbeat ever recorded",
+            ))),
             Some(row) => {
                 if row.retry_count > 5 {
                     return Ok(Some(StuckSignal::new(

@@ -64,7 +64,7 @@ impl Agent for RecoveryAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
@@ -84,8 +84,10 @@ impl Agent for RecoveryAgent {
             .get("replay_events")
             .cloned()
             .unwrap_or(serde_json::json!([]));
+        ctx.task_progress(AgentKind::Recovery, "starting recovery analysis", Some(10));
 
         let (action, reasoning, retry_hint) = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Recovery, "calling model", Some(25));
             let prompt = format!(
                 r#"You are a recovery agent. A task is stuck and you must decide how to recover.
 
@@ -107,10 +109,8 @@ Return ONLY valid JSON (no markdown fences):
                 events = replay_events,
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
                 .await
@@ -123,6 +123,7 @@ Return ONLY valid JSON (no markdown fences):
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Recovery, "model response received", Some(75));
 
             let json = parse_json_response(&raw);
             let action = json
@@ -148,6 +149,12 @@ Return ONLY valid JSON (no markdown fences):
                 String::new(),
             )
         };
+
+        ctx.task_progress(
+            AgentKind::Recovery,
+            "finalizing recovery decision",
+            Some(95),
+        );
 
         Ok(AgentOutcome::new(serde_json::json!({
             "status": "recovered",

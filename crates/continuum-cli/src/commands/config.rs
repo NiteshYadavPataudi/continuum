@@ -22,10 +22,9 @@ fn cmd_set(key: &str, value: &str) -> CmdResult {
         "api_key" => cfg.set_api_key(provider, value),
         "base_url" => cfg.set_base_url(provider, value),
         other => {
-            return Err(format!(
-                "unknown config field '{other}'. Valid fields: api_key, base_url"
+            return Err(
+                format!("unknown config field '{other}'. Valid fields: api_key, base_url").into(),
             )
-            .into())
         }
     }
 
@@ -51,20 +50,13 @@ fn cmd_get(key: &str) -> CmdResult {
     let value = match field {
         "api_key" => {
             // Try env vars first, then config file
-            let env_hint = PROVIDERS
-                .get(provider)
-                .map(|p| p.env_var)
-                .unwrap_or("");
+            let env_hint = PROVIDERS.get(provider).map(|p| p.env_var).unwrap_or("");
             cfg.api_key(provider, env_hint)
         }
-        "base_url" => cfg.base_url(provider).or_else(|| {
-            PROVIDERS
-                .get(provider)
-                .map(|p| p.api_base_url.to_string())
-        }),
-        other => {
-            return Err(format!("unknown field '{other}'. Valid: api_key, base_url").into())
-        }
+        "base_url" => cfg
+            .base_url(provider)
+            .or_else(|| PROVIDERS.get(provider).map(|p| p.api_base_url.to_string())),
+        other => return Err(format!("unknown field '{other}'. Valid: api_key, base_url").into()),
     };
 
     match value {
@@ -132,10 +124,7 @@ fn cmd_providers() -> CmdResult {
     let cfg = Config::load();
 
     println!("Available providers  ({} total)\n", PROVIDERS.len());
-    println!(
-        "{:<14} {:<26} {:<34} KEY",
-        "ID", "NAME", "BASE URL"
-    );
+    println!("{:<14} {:<26} {:<34} KEY", "ID", "NAME", "BASE URL");
     println!("{}", "─".repeat(90));
 
     let mut sorted: Vec<_> = PROVIDERS.entries().collect();
@@ -192,17 +181,9 @@ fn parse_key(key: &str) -> Result<(&str, &str), String> {
 }
 
 fn mask_key(key: &str) -> String {
-    if key.len() <= 8 {
-        return "****".to_string();
-    }
-    let visible = &key[..6];
-    format!("{visible}…{}", "*".repeat(6))
+    crate::output::mask_key(key)
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max - 1])
-    }
+    crate::output::truncate_str(s, max)
 }

@@ -30,9 +30,15 @@ impl ToolRunner for JestRunner {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting jest", Some(5));
 
         let mut argv = vec!["npx".into(), "jest".into(), "--ci".into()];
-        if invocation.args.get("coverage").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if invocation
+            .args
+            .get("coverage")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             argv.push("--coverage".into());
         }
         if let Some(bail) = invocation.args.get("bail").and_then(|v| v.as_u64()) {
@@ -47,6 +53,7 @@ impl ToolRunner for JestRunner {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("jest process launched", Some(25));
 
         let mut exit_code = 0;
         let mut stream = std::pin::pin!(stream);
@@ -56,13 +63,21 @@ impl ToolRunner for JestRunner {
                 break;
             }
         }
+        invocation.tool_progress("jest process finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let findings = if exit_code == 0 {
             vec![]
         } else {
-            vec![Finding::new("jest", continuum_core::validator::Severity::Error, "jest tests failed", None, None)]
+            vec![Finding::new(
+                "jest",
+                continuum_core::validator::Severity::Error,
+                "jest tests failed",
+                None,
+                None,
+            )]
         };
+        invocation.tool_completed(format!("jest finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

@@ -73,8 +73,7 @@ impl RecallEngine {
                 let mem_id =
                     MemoryId::from(uuid::Uuid::parse_str(&row.id).unwrap_or(uuid::Uuid::nil()));
                 let hit = RecallHit::new(
-                    MemoryItem::new(mem_id, row.detail.clone())
-                        .with_tokens(row.token_count as u32),
+                    MemoryItem::new(mem_id, row.detail.clone()).with_tokens(row.token_count as u32),
                     0.5,
                 );
                 hits.push(hit);

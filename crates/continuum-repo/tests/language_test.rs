@@ -3,9 +3,18 @@ use std::path::Path;
 
 #[test]
 fn test_language_from_path() {
-    assert_eq!(Language::from_path(Path::new("foo.rs")), Some(Language::Rust));
-    assert_eq!(Language::from_path(Path::new("foo.ts")), Some(Language::TypeScript));
-    assert_eq!(Language::from_path(Path::new("foo.py")), Some(Language::Python));
+    assert_eq!(
+        Language::from_path(Path::new("foo.rs")),
+        Some(Language::Rust)
+    );
+    assert_eq!(
+        Language::from_path(Path::new("foo.ts")),
+        Some(Language::TypeScript)
+    );
+    assert_eq!(
+        Language::from_path(Path::new("foo.py")),
+        Some(Language::Python)
+    );
     assert_eq!(Language::from_path(Path::new("foo.go")), Some(Language::Go));
     assert_eq!(Language::from_path(Path::new("foo.js")), None);
 }

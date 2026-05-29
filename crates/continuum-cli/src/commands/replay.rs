@@ -17,17 +17,21 @@ pub async fn run(args: ReplayArgs) -> CmdResult {
     let memory_repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
     let vector = continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
 
-    let recovery = continuum_recovery::SqliteRecovery::new(checkpoints, heartbeats, events, memory_repo, vector);
+    let recovery = continuum_recovery::SqliteRecovery::new(
+        checkpoints,
+        heartbeats,
+        events,
+        memory_repo,
+        vector,
+    );
 
     let session_id = SessionId::from(
-        uuid::Uuid::parse_str(&args.session)
-            .map_err(|e| format!("invalid session ID: {e}"))?,
+        uuid::Uuid::parse_str(&args.session).map_err(|e| format!("invalid session ID: {e}"))?,
     );
 
     let from = match args.from {
         Some(ref s) => CheckpointId::from(
-            uuid::Uuid::parse_str(s)
-                .map_err(|e| format!("invalid checkpoint ID: {e}"))?,
+            uuid::Uuid::parse_str(s).map_err(|e| format!("invalid checkpoint ID: {e}"))?,
         ),
         None => CheckpointId::from(uuid::Uuid::nil()),
     };
@@ -44,7 +48,8 @@ pub async fn run(args: ReplayArgs) -> CmdResult {
             Ok(ev) => {
                 println!(
                     "[{}] {}",
-                    ev.at.format(&time::format_description::well_known::Rfc3339)
+                    ev.at
+                        .format(&time::format_description::well_known::Rfc3339)
                         .unwrap_or_default(),
                     serde_json::to_string_pretty(&ev.payload).unwrap_or_default()
                 );

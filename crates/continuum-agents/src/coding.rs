@@ -3,7 +3,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 
-use continuum_core::agent::{Agent, AgentCapabilities, AgentContext, AgentError, AgentKind, AgentOutcome, AgentTask};
+use continuum_core::agent::{
+    Agent, AgentCapabilities, AgentContext, AgentError, AgentKind, AgentOutcome, AgentTask,
+};
 use continuum_core::caps::Cap;
 use continuum_core::ids::{AgentId, ModelId};
 use continuum_core::model::{CompletionRequest, Message, ModelProvider};
@@ -64,7 +66,7 @@ impl Agent for CodingAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let goal = task
@@ -72,8 +74,10 @@ impl Agent for CodingAgent {
             .get("goal")
             .and_then(|v| v.as_str())
             .unwrap_or("implement the described change");
+        ctx.task_progress(AgentKind::Coding, "starting code generation", Some(10));
 
         let code = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Coding, "calling model", Some(25));
             let prompt = format!(
                 "You are a coding agent. Implement the following goal.\n\
                  Write production-quality, idiomatic Rust code.\n\n\
@@ -81,10 +85,8 @@ impl Agent for CodingAgent {
                  Return ONLY the code, wrapped in a markdown code block."
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
 
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
@@ -98,11 +100,14 @@ impl Agent for CodingAgent {
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Coding, "model response received", Some(75));
 
             extract_code_blocks(&response).unwrap_or(response)
         } else {
             format!("// Stub implementation for: {goal}\n// No model provider configured.\n")
         };
+
+        ctx.task_progress(AgentKind::Coding, "finalizing code output", Some(95));
 
         Ok(AgentOutcome::new(serde_json::json!({
             "status": "generated",

@@ -109,7 +109,11 @@ impl ModelProvider for OllamaProvider {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(ModelError::Other(format!("Ollama HTTP {}: {}", status, response.text().await.unwrap_or_default())));
+            return Err(ModelError::Other(format!(
+                "Ollama HTTP {}: {}",
+                status,
+                response.text().await.unwrap_or_default()
+            )));
         }
 
         let sse_stream = crate::sse::parse_sse(response, cancel);
@@ -147,7 +151,11 @@ impl ModelProvider for OllamaProvider {
         let vectors = vec![data
             .get("embedding")
             .and_then(|v| v.as_array())
-            .and_then(|arr| arr.iter().map(|v| v.as_f64().map(|f| f as f32)).collect::<Option<Vec<_>>>())
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<_>>>()
+            })
             .unwrap_or_default()];
 
         Ok(EmbedResponse::new(vectors))

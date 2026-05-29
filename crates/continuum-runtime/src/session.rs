@@ -5,6 +5,7 @@ use continuum_core::memory::MemoryStore;
 use continuum_core::recovery::RecoveryStore;
 use continuum_core::sandbox::SandboxHandle;
 use continuum_core::CancellationToken;
+use std::path::PathBuf;
 
 /// One user-driven execution session.
 pub struct Session {
@@ -16,6 +17,8 @@ pub struct Session {
     pub recovery: Option<Arc<dyn RecoveryStore>>,
     /// Sandbox handle for isolated execution.
     pub sandbox: Option<Arc<dyn SandboxHandle>>,
+    /// Workspace root used for per-agent worktree isolation.
+    pub workspace_root: Option<PathBuf>,
     /// Cancellation token for the session.
     pub cancel: CancellationToken,
 }
@@ -39,6 +42,7 @@ impl Session {
             memory: None,
             recovery: None,
             sandbox: None,
+            workspace_root: None,
             cancel: CancellationToken::new(),
         }
     }
@@ -58,6 +62,12 @@ impl Session {
     /// Attach a sandbox handle.
     pub fn with_sandbox(mut self, sandbox: Arc<dyn SandboxHandle>) -> Self {
         self.sandbox = Some(sandbox);
+        self
+    }
+
+    /// Attach a workspace root for isolated worktrees.
+    pub fn with_workspace_root(mut self, workspace_root: PathBuf) -> Self {
+        self.workspace_root = Some(workspace_root);
         self
     }
 }

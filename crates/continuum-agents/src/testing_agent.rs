@@ -61,7 +61,7 @@ impl Agent for TestingAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
@@ -77,8 +77,10 @@ impl Agent for TestingAgent {
             .get("language")
             .and_then(|v| v.as_str())
             .unwrap_or("rust");
+        ctx.task_progress(AgentKind::Testing, "starting test generation", Some(10));
 
         let tests = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Testing, "calling model", Some(25));
             let prompt = format!(
                 r#"You are a testing agent. Write comprehensive test cases for the following code.
 
@@ -99,10 +101,8 @@ Requirements:
 - Return ONLY a code block wrapped in markdown fences"#
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
                 .await
@@ -115,6 +115,7 @@ Requirements:
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Testing, "model response received", Some(75));
 
             extract_code_block(&raw).unwrap_or(raw)
         } else {
@@ -122,6 +123,8 @@ Requirements:
                 "// Stub tests for: {goal}\n// No model provider configured.\n#[cfg(test)]\nmod tests {{\n    #[test]\n    fn placeholder() {{ todo!() }}\n}}\n"
             )
         };
+
+        ctx.task_progress(AgentKind::Testing, "finalizing test output", Some(95));
 
         let test_count = count_test_functions(&tests, language);
 

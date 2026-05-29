@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use continuum_core::agent::{Agent, AgentCapabilities, AgentContext, AgentError, AgentKind, AgentOutcome, AgentTask};
+use continuum_core::agent::{
+    Agent, AgentCapabilities, AgentContext, AgentError, AgentKind, AgentOutcome, AgentTask,
+};
 use continuum_core::ids::AgentId;
 use continuum_core::CancellationToken;
 
@@ -43,14 +45,16 @@ impl Agent for StubAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         _cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
+        ctx.task_progress(self.kind, "stub agent handling task", Some(10));
         tracing::info!(
             agent = ?self.kind,
             task = %task.task_id,
             "stub agent handling task"
         );
+        ctx.task_progress(self.kind, "stub agent completed", Some(95));
         Ok(AgentOutcome::new(serde_json::json!({
             "status": "stub",
             "agent": format!("{:?}", self.kind),

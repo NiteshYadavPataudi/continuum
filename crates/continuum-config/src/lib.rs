@@ -51,8 +51,8 @@ impl Config {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| ConfigError::Io(e.to_string()))?;
         }
-        let text = toml::to_string_pretty(self)
-            .map_err(|e| ConfigError::Serialize(e.to_string()))?;
+        let text =
+            toml::to_string_pretty(self).map_err(|e| ConfigError::Serialize(e.to_string()))?;
         std::fs::write(&path, text).map_err(|e| ConfigError::Io(e.to_string()))?;
         Ok(())
     }
@@ -80,9 +80,7 @@ impl Config {
                 }
             }
         }
-        self.providers
-            .get(provider)
-            .and_then(|p| p.api_key.clone())
+        self.providers.get(provider).and_then(|p| p.api_key.clone())
     }
 
     /// Resolve the base URL override for `provider`. `None` means use the built-in default.
@@ -131,8 +129,7 @@ impl Config {
 
 /// Filesystem path for the user-level config file (`~/.continuum/config.toml`).
 pub fn config_path() -> Option<PathBuf> {
-    directories::UserDirs::new()
-        .map(|u| u.home_dir().join(".continuum").join("config.toml"))
+    directories::UserDirs::new().map(|u| u.home_dir().join(".continuum").join("config.toml"))
 }
 
 /// Errors produced by config I/O operations.

@@ -35,12 +35,15 @@ pub async fn run(args: ExecuteArgs) -> CmdResult {
         .map_err(|e| format!("failed to build repo index: {e}"))?;
 
     // Set up the dashboard broadcast channel (used even without TUI for event capture)
-    let (dash_tx, dash_rx) = broadcast::channel(512);
+    let (dash_tx, _dash_rx) = broadcast::channel(512);
+    let follow_tui = args.follow_tui;
 
-    // Spawn the TUI if not disabled
+    // Spawn the dashboard if not using the full-screen follow mode.
     let no_tui = args.no_tui;
-    let dashboard_task = if !no_tui {
-        let rx = dash_rx;
+    let dashboard_task = if follow_tui {
+        None
+    } else if !no_tui {
+        let rx = dash_tx.subscribe();
         Some(tokio::spawn(async move {
             let mut app = crate::dashboard::DashboardApp::new(rx);
             if let Err(e) = app.run().await {
@@ -126,25 +129,58 @@ pub async fn run(args: ExecuteArgs) -> CmdResult {
 
     let cancel = CancellationToken::new();
     let scheduler = continuum_runtime::Scheduler::new();
-    let outcomes = scheduler.run(&plan, cancel).await?;
+    let runtime_session = continuum_runtime::Session::new().with_workspace_root(root.clone());
 
-    // Emit task results as dashboard events
-    for outcome in &outcomes {
-        let status = outcome
-            .artifacts
-            .get("status")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
-        let agent = outcome
-            .artifacts
-            .get("agent")
-            .and_then(|v| v.as_str())
-            .unwrap_or("?");
-        emit(DashboardEvent::TaskCompleted {
-            agent: agent.to_string(),
-            status: status.to_string(),
+    if follow_tui {
+        let exec_tx = dash_tx.clone();
+        let exec_plan = plan.clone();
+        let exec_scheduler = scheduler;
+        let exec_session = runtime_session;
+        let exec_handle = tokio::spawn(async move {
+            exec_scheduler
+                .run_with_session_events(&exec_plan, &exec_session, cancel, Some(exec_tx))
+                .await
         });
+
+        let tui_session = crate::repl::ReplSession::new();
+        let follow_rx = dash_tx.subscribe();
+        let tui_handle = tokio::task::spawn_blocking(move || {
+            crate::tui::run_tui_with_events(tui_session, Some(follow_rx)).map_err(|e| e.to_string())
+        });
+
+        let outcomes = exec_handle
+            .await
+            .map_err(|e| format!("execution task failed: {e}"))??;
+
+        emit(DashboardEvent::CostUpdate {
+            usd: estimate.usd,
+            tokens: estimate.input_tokens + estimate.output_tokens,
+        });
+        emit(DashboardEvent::Shutdown);
+
+        tui_handle.await.map_err(|e| format!("tui failed: {e}"))??;
+
+        println!("\nExecution complete: {} tasks dispatched.", outcomes.len());
+        for outcome in &outcomes {
+            let status = outcome
+                .artifacts
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("done");
+            let agent = outcome
+                .artifacts
+                .get("agent")
+                .and_then(|v| v.as_str())
+                .unwrap_or("agent");
+            println!("  • [{agent}] {status}");
+        }
+
+        return Ok(());
     }
+
+    let outcomes = scheduler
+        .run_with_session_events(&plan, &runtime_session, cancel, Some(dash_tx.clone()))
+        .await?;
 
     // Cost update
     emit(DashboardEvent::CostUpdate {
@@ -155,21 +191,18 @@ pub async fn run(args: ExecuteArgs) -> CmdResult {
     emit(DashboardEvent::Shutdown);
 
     if no_tui {
-        println!(
-            "\nExecution complete: {} tasks dispatched.",
-            outcomes.len()
-        );
+        println!("\nExecution complete: {} tasks dispatched.", outcomes.len());
         for outcome in &outcomes {
             let status = outcome
                 .artifacts
                 .get("status")
                 .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
+                .unwrap_or("done");
             let agent = outcome
                 .artifacts
                 .get("agent")
                 .and_then(|v| v.as_str())
-                .unwrap_or("?");
+                .unwrap_or("agent");
             println!("  • [{agent}] {status}");
         }
 

@@ -30,7 +30,7 @@ That single command triggers:
 4. **Code generation** — CodingAgent implements the change
 5. **Test generation** — TestingAgent writes tests
 6. **10-stage validation** — compile → lint → typecheck → unit → integration → e2e → security scan → startup → performance → regression
-7. **Security hardening** — semgrep + trivy + gitleaks scans
+7. **Security hardening** — semgrep + trivy + gitleaks scans (3 modes)
 8. **Code review** — ReviewAgent checks the diff
 9. **Memory compression** — session context archived from hot → warm → cold tiers
 10. **Checkpoint** — state saved at every step so you can `resume` after any failure
@@ -40,44 +40,48 @@ That single command triggers:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  continuum CLI  (clap + ratatui live dashboard)  │
-│  init · analyze · execute · config · harden …   │
-└───────────────────────┬─────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────┐
-│            Scheduler  (DAG walk)                 │
-│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌────────┐  │
-│  │ Planner  │ │ Coding │ │Testing │ │Security│  │
-│  │  Agent   │ │ Agent  │ │ Agent  │ │ Agent  │  │
-│  └──────────┘ └────────┘ └────────┘ └────────┘  │
-│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌────────┐  │
-│  │  Arch    │ │ Review │ │ Memory │ │Recovery│  │
-│  │  Agent   │ │ Agent  │ │ Agent  │ │ Agent  │  │
-│  └──────────┘ └────────┘ └────────┘ └────────┘  │
-└───────────────────────┬─────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────┐
-│  Validation Pipeline  (10 stages)                │
-│  Compile→Lint→TypeCheck→Unit→Integration→        │
-│  E2E→SecurityScan→Startup→Perf→Regression        │
-└───────────────────────┬─────────────────────────┘
-                        │
-         ┌──────────────┼──────────────┐
-         │              │              │
-┌────────▼───┐  ┌───────▼──────┐  ┌───▼──────────┐
-│  Repo      │  │  Memory      │  │  Recovery    │
-│Intelligence│  │  Hot/Warm/   │  │  Checkpoint  │
-│(tree-sitter│  │  Cold tiers  │  │  Replay      │
-│  4 langs)  │  │  (SQLite +   │  │  Heartbeat   │
-│            │  │   vectors)   │  │              │
-└────────────┘  └──────────────┘  └──────────────┘
-         │
-┌────────▼─────────────────────────────────────────┐
-│  Model Providers  (10 providers, 40+ models)     │
-│  Anthropic · OpenAI · Gemini · Groq · DeepSeek  │
-│  Mistral · Cohere · Together · Fireworks · Ollama│
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  continuum CLI  (clap + ratatui live dashboard)       │
+│  init · analyze · execute · config · harden · doctor  │
+│  --tui · --continue · --resume · --model · --print   │
+└────────────────────────┬──────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────┐
+│              Scheduler  (DAG walk + JoinSet)            │
+│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐     │
+│  │ Planner  │ │ Coding │ │Testing │ │ Security │     │
+│  │  Agent   │ │ Agent  │ │ Agent  │ │  Agent   │     │
+│  └──────────┘ └────────┘ └────────┘ └──────────┘     │
+│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐     │
+│  │  Arch    │ │ Review │ │ Memory │ │ Recovery │     │
+│  │  Agent   │ │ Agent  │ │ Agent  │ │  Agent   │     │
+│  └──────────┘ └────────┘ └────────┘ └──────────┘     │
+└────────────────────────┬──────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────┐
+│  Validation Pipeline  (10 stages, multi-language)      │
+│  Compile→Lint→TypeCheck→Unit→Integration→              │
+│  E2E→SecurityScan→Startup→Perf→Regression              │
+│  Rust (cargo) · TypeScript (biome/vitest) · Python     │
+└────────────────────────┬──────────────────────────────┘
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+┌─────────▼───┐  ┌───────▼──────┐  ┌───▼──────────┐
+│  Repo       │  │  Memory      │  │  Recovery    │
+│Intelligence │  │  Hot/Warm/   │  │  Checkpoint  │
+│(tree-sitter │  │  Cold tiers  │  │  Replay      │
+│  4 langs)   │  │  (SQLite +   │  │  Heartbeat   │
+│ Impact      │  │   vectors)   │  │  Audit log   │
+│ Analysis    │  │              │  │              │
+└─────────────┘  └──────────────┘  └───▲──────────┘
+          │                             │
+┌─────────▼─────────────────────────────┴──────────┐
+│  Model Providers  (10 providers, 40+ models)      │
+│  Anthropic · OpenAI · Gemini · Groq · DeepSeek   │
+│  Mistral · Cohere · Together · Fireworks · Ollama │
+│  CompatProvider for any OpenAI-compatible API     │
+└───────────────────────────────────────────────────┘
 ```
 
 ---
@@ -86,16 +90,18 @@ That single command triggers:
 
 | Capability | Details |
 |---|---|
-| **Multi-agent orchestration** | 8 specialized agents coordinated by a DAG scheduler |
-| **10-stage validation** | Every change must pass compile → regression before merging |
-| **3-tier memory** | Hot (full context) → Warm (LLM summaries) → Cold (semantic search) |
-| **Crash recovery** | Checkpoint after every plan node; `continuum resume` from any failure |
-| **Repo intelligence** | Tree-sitter symbol graphs for Rust, TypeScript, Python, Go |
-| **Security hardening** | 3 modes (audit / hardening / enterprise) with automated remediation |
+| **Multi-agent orchestration** | 8 specialized agents coordinated by a DAG scheduler with concurrency limits |
+| **10-stage validation** | Every change must pass compile → regression; supports Rust, TypeScript, Python |
+| **3-tier memory** | Hot (full context) → Warm (LLM summaries) → Cold (semantic search via SQLite-vec/Qdrant) |
+| **Crash recovery** | Checkpoint after every plan node; `resume` from any failure |
+| **Repo intelligence** | Tree-sitter symbol graphs for Rust, TypeScript, Python, Go with transitive impact analysis |
+| **Security hardening** | 3 modes (audit / hardening / enterprise) with automated remediation and SOC2 compliance |
 | **10 model providers** | Anthropic, OpenAI, Gemini, Groq, DeepSeek, Mistral, Cohere, Together, Fireworks, Ollama |
-| **Docker sandbox** | All tool execution runs inside an isolated container |
-| **Live TUI dashboard** | 4-pane ratatui dashboard (plan DAG · agent log · validation · cost) |
-| **OpenTelemetry + Prometheus** | OTLP export, Grafana dashboards included |
+| **Docker sandbox** | All tool execution runs inside an isolated container; auto-detects Cargo/npm/pip projects |
+| **Live TUI dashboard** | 4-pane ratatui dashboard (plan DAG · validation status · agent log · cost tracker) |
+| **OpenTelemetry + Prometheus** | OTLP export, Grafana dashboards (memory, validation, cost, run overview) |
+| **Multi-language validation** | Biome + Vitest for TypeScript, pytest for Python; auto-detected per project |
+| **REPL + TUI + CLI** | Three interaction modes: interactive REPL, full-screen TUI, and traditional subcommands |
 
 ---
 
@@ -186,26 +192,52 @@ continuum resume
 
 # 6. Run a security audit
 continuum harden --mode audit
+
+# 7. Launch the live TUI dashboard
+continuum --tui
 ```
 
 ---
 
-## CLI Commands
+## CLI Usage
+
+Continuum supports three execution modes:
+
+| Mode | Example | Description |
+|---|---|---|
+| **Subcommand** | `continuum execute --goal "..."` | Traditional CLI subcommands |
+| **Direct goal** | `continuum "add rate limiting"` | Execute goal directly without subcommand |
+| **REPL** | `continuum` | Interactive shell with history and context |
+| **TUI** | `continuum --tui` | Full-screen terminal dashboard |
+
+### Global options
+
+| Flag | Description |
+|---|---|
+| `--project <path>` | Path to project directory (defaults to cwd) |
+| `-v` / `--verbose` | Enable verbose logging |
+| `-p` / `--print` | Print result as JSON and exit (non-interactive) |
+| `--tui` | Launch full-screen TUI dashboard |
+| `-c` / `--continue` | Continue the most recent session |
+| `-r` / `--resume <id>` | Resume a specific session by ID |
+| `--model <name>` | Override the model for this session |
+
+### Commands
 
 | Command | Description |
 |---|---|
-| `continuum init` | Write the eight engineering docs into the project |
-| `continuum analyze` | Analyze the repository and print an architecture report |
-| `continuum execute` | Run an autonomous engineering session |
+| `continuum init` | Scaffold the eight engineering docs into the project |
+| `continuum analyze` | Analyze the repository and produce an architecture report |
+| `continuum execute --goal "..."` | Run an autonomous engineering session |
 | `continuum resume` | Resume the most recent interrupted session |
-| `continuum harden` | Security hardening pass (`audit` · `hardening` · `enterprise`) |
-| `continuum rollback` | Roll back to a specific checkpoint |
-| `continuum replay` | Replay a past session for debugging |
+| `continuum harden --mode <mode>` | Security hardening pass (`audit` · `hardening` · `enterprise`) |
+| `continuum rollback <session> --to <checkpoint>` | Roll back state to a specific checkpoint |
+| `continuum replay <session>` | Replay a past session for debugging |
 | `continuum doctor` | Diagnose the local environment |
-| `continuum benchmark` | Run benchmarks against fixture projects |
+| `continuum benchmark` | Run validation benchmarks against fixture projects |
 | `continuum memory` | Inspect or compact the memory engine |
-| `continuum install` | Install optional tool dependencies |
-| **`continuum config`** | **Read and write provider API keys and settings** |
+| `continuum install` | Install optional tool dependencies (semgrep, trivy, gitleaks) |
+| `continuum config` | Read and write provider API keys and settings |
 
 ### `continuum config` — provider configuration
 
@@ -289,7 +321,7 @@ Eight specialized agents, each implementing the `Agent` trait:
 | `ArchitectureAgent` | Reviews diffs for SOLID violations and layer coupling | No | Yes |
 | `CodingAgent` | Streams code from the model provider | No | No |
 | `TestingAgent` | Generates idiomatic tests for produced code | Yes | No |
-| `SecurityAgent` | Runs semgrep / trivy / gitleaks, produces audit reports | Yes | Yes |
+| `SecurityAgent` | Runs semgrep / trivy / gitleaks / ZAP, produces audit reports | Yes | Yes |
 | `ReviewAgent` | Code review — correctness, style, performance, security | No | Yes |
 | `MemoryAgent` | Compresses hot memory items into warm summaries | No | No |
 | `RecoveryAgent` | Decides retry / skip / replan when a task gets stuck | No | No |
@@ -328,7 +360,7 @@ Every change passes 10 stages before it is accepted:
 | 9 | Performance | Build-time regression | Optional |
 | 10 | Regression | Full test suite | Optional |
 
-TypeScript uses Biome + Vitest; Python uses pytest.
+TypeScript uses Biome + Vitest; Python uses pytest. The pipeline auto-detects the project language from `Cargo.toml`, `package.json`, or `pyproject.toml`.
 
 ---
 
@@ -342,9 +374,11 @@ continuum harden --mode enterprise   # hardening + compliance attestation
 
 | Mode | Capabilities | What it does |
 |---|---|---|
-| `audit` | Read-only | Semgrep + Trivy + Gitleaks; reports findings |
-| `hardening` | Network + secrets + models | Remediates findings, applies patches |
-| `enterprise` | All | Hardening + SOC2 compliance attestation + audit log |
+| `audit` | Read-only | Semgrep + Trivy + Gitleaks + ZAP; reports findings |
+| `hardening` | Network + secrets + models | Remediates findings, applies patches, dependency updates |
+| `enterprise` | All | Hardening + SOC2 compliance attestation + audit log + RBAC |
+
+Semgrep rules included: command injection, hardcoded secrets, unsafe functions, inline assembly.
 
 ---
 
@@ -363,10 +397,11 @@ Cold — vector embeddings for semantic recall (SQLite-vec / Qdrant)
 ### Recovery
 
 - **Checkpoint** after every plan node
-- **Heartbeat monitor** detects stuck tasks
+- **Heartbeat monitor** detects stuck tasks (configurable timeout)
 - **`continuum resume`** restarts from the last checkpoint
-- **`continuum replay <session>`** replays events for debugging
+- **`continuum replay <session>`** replays events for debugging with full event stream
 - **`continuum rollback <session> --to <checkpoint>`** reverts state
+- **Audit log** — append-only event record for compliance
 
 ---
 
@@ -381,7 +416,7 @@ Tree-sitter-based symbol extraction for four languages:
 | Python | functions, classes, async functions |
 | Go | functions, methods, structs, interfaces |
 
-Impact analysis computes the full transitive dependent set for any changed symbol — so agents only re-validate what actually changed.
+Impact analysis computes the full transitive dependent set for any changed symbol — so agents only re-validate what actually changed. Symbol-level granularity enables precise context loading.
 
 ---
 
@@ -403,20 +438,20 @@ continuum/
 │   ├── continuum-memory/         # Hot / warm / cold memory engine
 │   ├── continuum-agents/         # 8 agent implementations
 │   ├── continuum-validation/     # 10-stage validation pipeline
-│   ├── continuum-security/       # Hardening modes + compliance
-│   ├── continuum-recovery/       # Checkpoints, replay, heartbeat
-│   ├── continuum-runtime/        # DAG scheduler + session
+│   ├── continuum-security/       # Hardening modes + compliance attestation
+│   ├── continuum-recovery/       # Checkpoints, replay, heartbeat, audit log
+│   ├── continuum-runtime/        # DAG scheduler + session orchestration
 │   ├── continuum-tools/          # Unified tool registry
 │   ├── continuum-tools-linters/  # Clippy runner
 │   ├── continuum-tools-security/ # Semgrep / Trivy / Gitleaks / ZAP / cargo-audit
-│   ├── continuum-tools-testing/  # cargo-test / Jest / K6
+│   ├── continuum-tools-testing/  # cargo-test / Jest / K6 load runner
 │   ├── continuum-tools-browser/  # Playwright / chromiumoxide
-│   └── continuum-cli/            # Binary + ratatui TUI dashboard
+│   └── continuum-cli/            # Binary + ratatui TUI + 4-pane dashboard
 ├── xtask/                        # Workspace automation (refresh-models, security-lint…)
 ├── docs/                         # VISION · PRODUCT · ARCHITECTURE · ENGINEERING
 │                                 # TASKS · AGENTS · MODEL_RULES · SECURITY
-├── dashboards/                   # Grafana JSON dashboards
-├── plans/                        # Phase implementation plans
+├── dashboards/                   # Grafana JSON dashboards (4 panels)
+├── fixtures/                     # Test fixture projects (Rust, TS, Python)
 └── Cargo.toml                    # Workspace root (24 members)
 ```
 
@@ -440,6 +475,12 @@ cargo xtask refresh-models
 
 # Security lint (checks Cap::grant() usage)
 cargo xtask security-lint
+
+# Generate JSON schemas
+cargo xtask gen-schemas
+
+# Run benchmarks
+cargo xtask bench
 ```
 
 ### Key design principles
@@ -497,7 +538,7 @@ CONTINUUM_<PROVIDER>_BASE_URL  # generic base URL override
 
 ## Roadmap
 
-See [`docs/TASKS.md`](docs/TASKS.md) for the phased implementation plan.
+See [`docs/TASKS.md`](docs/TASKS.md) for the detailed phased implementation plan.
 
 | Phase | Status | Description |
 |---|---|---|
@@ -505,11 +546,11 @@ See [`docs/TASKS.md`](docs/TASKS.md) for the phased implementation plan.
 | 2 | ✅ Done | Models + storage substrate, AnthropicProvider, SQLite |
 | 3 | ✅ Done | Repo intelligence (tree-sitter), LLM planner, DAG |
 | 4 | ✅ Done | Docker sandbox, CodingAgent, Clippy runner, Scheduler |
-| 5 | ✅ Done | 10-stage validation pipeline |
-| 6 | ✅ Done | Memory engine (hot/warm/cold), recovery, replay |
+| 5 | ✅ Done | 10-stage validation pipeline (Rust, TS, Python, Go) |
+| 6 | ✅ Done | Memory engine (hot/warm/cold), recovery, replay, audit |
 | 7 | ✅ Done | All 8 agents, Gemini/DeepSeek/Groq providers, `continuum config` |
-| 8 | 🔨 In Progress | Live TUI dashboard, OpenTelemetry polish |
-| 9 | 🔨 In Progress | Security hardening modes, enterprise compliance |
+| 8 | ✅ Done | Live TUI dashboard (4 panes), OpenTelemetry, Grafana dashboards |
+| 9 | ✅ Done | Security hardening (audit/hardening/enterprise), ZAP, SOC2 compliance |
 
 ---
 

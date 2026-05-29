@@ -60,42 +60,22 @@ impl CompatProvider {
 
     /// Convenience constructor for DeepSeek.
     pub fn deepseek(api_key: String, secrets: Cap<ReadSecrets>) -> Self {
-        Self::new(
-            "deepseek",
-            api_key,
-            "https://api.deepseek.com/v1",
-            secrets,
-        )
+        Self::new("deepseek", api_key, "https://api.deepseek.com/v1", secrets)
     }
 
     /// Convenience constructor for Groq.
     pub fn groq(api_key: String, secrets: Cap<ReadSecrets>) -> Self {
-        Self::new(
-            "groq",
-            api_key,
-            "https://api.groq.com/openai/v1",
-            secrets,
-        )
+        Self::new("groq", api_key, "https://api.groq.com/openai/v1", secrets)
     }
 
     /// Convenience constructor for Mistral.
     pub fn mistral(api_key: String, secrets: Cap<ReadSecrets>) -> Self {
-        Self::new(
-            "mistral",
-            api_key,
-            "https://api.mistral.ai/v1",
-            secrets,
-        )
+        Self::new("mistral", api_key, "https://api.mistral.ai/v1", secrets)
     }
 
     /// Convenience constructor for Together AI.
     pub fn together(api_key: String, secrets: Cap<ReadSecrets>) -> Self {
-        Self::new(
-            "together",
-            api_key,
-            "https://api.together.xyz/v1",
-            secrets,
-        )
+        Self::new("together", api_key, "https://api.together.xyz/v1", secrets)
     }
 
     /// Convenience constructor for Fireworks AI.
@@ -104,6 +84,16 @@ impl CompatProvider {
             "fireworks",
             api_key,
             "https://api.fireworks.ai/inference/v1",
+            secrets,
+        )
+    }
+
+    /// Convenience constructor for OpenRouter.
+    pub fn openrouter(api_key: String, secrets: Cap<ReadSecrets>) -> Self {
+        Self::new(
+            "openrouter",
+            api_key,
+            "https://openrouter.ai/api/v1",
             secrets,
         )
     }
@@ -202,9 +192,7 @@ fn delta_from_openai_sse(val: &serde_json::Value) -> Result<Option<Delta>, Model
                 _ => {
                     let finish = choice.get("finish_reason").and_then(|v| v.as_str());
                     match finish {
-                        Some("stop") | Some("length") => {
-                            Ok(Some(Delta::new(String::new(), true)))
-                        }
+                        Some("stop") | Some("length") => Ok(Some(Delta::new(String::new(), true))),
                         _ => Ok(None),
                     }
                 }

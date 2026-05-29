@@ -141,7 +141,11 @@ impl ModelProvider for OpenAIProvider {
         let vectors = vec![data
             .pointer("/data/0/embedding")
             .and_then(|v| v.as_array())
-            .and_then(|arr| arr.iter().map(|v| v.as_f64().map(|f| f as f32)).collect::<Option<Vec<_>>>())
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<_>>>()
+            })
             .unwrap_or_default()];
 
         Ok(EmbedResponse::new(vectors))
@@ -160,9 +164,7 @@ fn delta_from_openai_sse(val: &serde_json::Value) -> Result<Option<Delta>, Model
             match delta.and_then(|v| v.as_str()) {
                 Some(text) if !text.is_empty() => Ok(Some(Delta::new(text.to_string(), false))),
                 _ => {
-                    let finish = choice
-                        .get("finish_reason")
-                        .and_then(|v| v.as_str());
+                    let finish = choice.get("finish_reason").and_then(|v| v.as_str());
                     match finish {
                         Some("stop") | Some("length") => Ok(Some(Delta::new(String::new(), true))),
                         _ => Ok(None),

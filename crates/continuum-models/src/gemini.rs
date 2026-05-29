@@ -17,8 +17,7 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    const DEFAULT_API_URL: &'static str =
-        "https://generativelanguage.googleapis.com/v1beta";
+    const DEFAULT_API_URL: &'static str = "https://generativelanguage.googleapis.com/v1beta";
 
     /// Create a Gemini provider with the given API key.
     pub fn new(api_key: String, _secrets: Cap<ReadSecrets>) -> Self {
@@ -166,9 +165,8 @@ fn delta_from_gemini_sse(val: &serde_json::Value) -> Result<Option<Delta>, Model
                 }
             }
             // Check finish reason
-            if let Some("STOP" | "MAX_TOKENS") = candidate
-                .get("finishReason")
-                .and_then(|v| v.as_str())
+            if let Some("STOP" | "MAX_TOKENS") =
+                candidate.get("finishReason").and_then(|v| v.as_str())
             {
                 return Ok(Some(Delta::new(String::new(), true)));
             }

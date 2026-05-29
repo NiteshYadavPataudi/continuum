@@ -17,12 +17,17 @@ pub async fn run(args: RollbackArgs) -> CmdResult {
     let memory_repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
     let vector = continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
 
-    let recovery = continuum_recovery::SqliteRecovery::new(checkpoints, heartbeats, events, memory_repo, vector);
+    let recovery = continuum_recovery::SqliteRecovery::new(
+        checkpoints,
+        heartbeats,
+        events,
+        memory_repo,
+        vector,
+    );
 
     let to = match args.to {
         Some(ref s) => CheckpointId::from(
-            uuid::Uuid::parse_str(s)
-                .map_err(|e| format!("invalid checkpoint ID: {e}"))?,
+            uuid::Uuid::parse_str(s).map_err(|e| format!("invalid checkpoint ID: {e}"))?,
         ),
         None => {
             let session_id = SessionId::from(

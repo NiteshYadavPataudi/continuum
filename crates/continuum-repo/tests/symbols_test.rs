@@ -1,4 +1,4 @@
-use continuum_repo::{Language, extract_symbols, extract_imports};
+use continuum_repo::{extract_imports, extract_symbols, Language};
 use std::path::Path;
 
 #[test]
@@ -8,8 +8,14 @@ fn hello() {}
 pub fn add(a: i32, b: i32) -> i32 { a + b }
 "#;
     let symbols = extract_symbols(Path::new("lib.rs"), source, Language::Rust);
-    assert!(!symbols.is_empty(), "should find at least 'hello' and 'add'");
-    let names: Vec<&str> = symbols.iter().map(|s| s.symbol.qualified.as_str()).collect();
+    assert!(
+        !symbols.is_empty(),
+        "should find at least 'hello' and 'add'"
+    );
+    let names: Vec<&str> = symbols
+        .iter()
+        .map(|s| s.symbol.qualified.as_str())
+        .collect();
     assert!(names.contains(&"hello"));
     assert!(names.contains(&"add"));
 }
@@ -27,9 +33,20 @@ class MyClass:
     pass
 "#;
     let symbols = extract_symbols(Path::new("main.py"), source, Language::Python);
-    let names: Vec<&str> = symbols.iter().map(|s| s.symbol.qualified.as_str()).collect();
-    assert!(names.contains(&"hello"), "should find 'hello', got {:?}", names);
-    assert!(names.contains(&"MyClass"), "should find 'MyClass', got {:?}", names);
+    let names: Vec<&str> = symbols
+        .iter()
+        .map(|s| s.symbol.qualified.as_str())
+        .collect();
+    assert!(
+        names.contains(&"hello"),
+        "should find 'hello', got {:?}",
+        names
+    );
+    assert!(
+        names.contains(&"MyClass"),
+        "should find 'MyClass', got {:?}",
+        names
+    );
 }
 
 #[test]
@@ -49,7 +66,10 @@ type Storage interface {
 }
 "#;
     let symbols = extract_symbols(Path::new("main.go"), source, Language::Go);
-    let names: Vec<&str> = symbols.iter().map(|s| s.symbol.qualified.as_str()).collect();
+    let names: Vec<&str> = symbols
+        .iter()
+        .map(|s| s.symbol.qualified.as_str())
+        .collect();
     assert!(names.contains(&"Hello"));
     assert!(names.contains(&"Config"));
     assert!(names.contains(&"Storage"));

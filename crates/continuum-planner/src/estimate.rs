@@ -77,8 +77,8 @@ pub async fn estimate(plan: &ExecutionPlan) -> Result<PlanEstimate, PlanError> {
     }
 
     // USD: rough model pricing at ~$3/MTok input, ~$15/MTok output (Sonnet-class).
-    let usd = (input_tokens as f64 / 1_000_000.0) * 3.0
-        + (output_tokens as f64 / 1_000_000.0) * 15.0;
+    let usd =
+        (input_tokens as f64 / 1_000_000.0) * 3.0 + (output_tokens as f64 / 1_000_000.0) * 15.0;
 
     let mut est = PlanEstimate::default();
     est.input_tokens = input_tokens;

@@ -17,12 +17,18 @@ pub async fn run(args: ResumeArgs) -> CmdResult {
     let memory_repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
     let vector = continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
 
-    let recovery = std::sync::Arc::new(
-        continuum_recovery::SqliteRecovery::new(checkpoints, heartbeats, events, memory_repo, vector),
-    );
+    let recovery = std::sync::Arc::new(continuum_recovery::SqliteRecovery::new(
+        checkpoints,
+        heartbeats,
+        events,
+        memory_repo,
+        vector,
+    ));
 
     let session_id = match args.session {
-        Some(s) => SessionId::from(uuid::Uuid::parse_str(&s).map_err(|e| format!("invalid session ID: {e}"))?),
+        Some(s) => SessionId::from(
+            uuid::Uuid::parse_str(&s).map_err(|e| format!("invalid session ID: {e}"))?,
+        ),
         None => {
             // Find the most recent session with checkpoints
             let _ = recovery;
@@ -38,7 +44,10 @@ pub async fn run(args: ResumeArgs) -> CmdResult {
 
     match latest {
         Some(ckpt) => {
-            let state_outline = ckpt.state.payload.get("last_agent")
+            let state_outline = ckpt
+                .state
+                .payload
+                .get("last_agent")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
             println!(

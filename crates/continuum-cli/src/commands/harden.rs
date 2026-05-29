@@ -8,7 +8,9 @@ use super::{CmdResult, HardenArgs};
 
 pub async fn run(args: HardenArgs) -> CmdResult {
     let mode: HardeningMode = args.mode.parse().map_err(|e: String| e)?;
-    let project = args.project.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+    let project = args
+        .project
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
     println!("── Security Hardening ──");
     println!("  Mode:    {mode:?}");
@@ -52,7 +54,10 @@ pub async fn run(args: HardenArgs) -> CmdResult {
             println!("  --- Remediation patches ---");
             for (i, patch) in patches.iter().enumerate() {
                 let finding = patch.get("finding").and_then(|v| v.as_str()).unwrap_or("?");
-                let severity = patch.get("severity").and_then(|v| v.as_str()).unwrap_or("?");
+                let severity = patch
+                    .get("severity")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
                 println!("  {}. [{severity}] {finding}", i + 1);
             }
         }
@@ -65,7 +70,10 @@ pub async fn run(args: HardenArgs) -> CmdResult {
             let compliance_file = compliance_path.join("COMPLIANCE.md");
             tokio::fs::write(&compliance_file, compliance_md).await?;
             println!();
-            println!("  Compliance attestation written to: {}", compliance_file.display());
+            println!(
+                "  Compliance attestation written to: {}",
+                compliance_file.display()
+            );
         }
     }
 

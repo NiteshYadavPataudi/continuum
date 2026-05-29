@@ -30,8 +30,13 @@ impl ToolRunner for K6LoadRunner {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting k6", Some(5));
 
-        let script = invocation.args.get("script").and_then(|v| v.as_str()).unwrap_or("k6-script.js");
+        let script = invocation
+            .args
+            .get("script")
+            .and_then(|v| v.as_str())
+            .unwrap_or("k6-script.js");
         let mut argv = vec!["k6".into(), "run".into(), script.into()];
         if let Some(vus) = invocation.args.get("vus").and_then(|v| v.as_u64()) {
             argv.push("--vus".into());
@@ -49,6 +54,7 @@ impl ToolRunner for K6LoadRunner {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("k6 launched", Some(20));
 
         let mut exit_code = 0;
         let mut stream = std::pin::pin!(stream);
@@ -58,13 +64,21 @@ impl ToolRunner for K6LoadRunner {
                 break;
             }
         }
+        invocation.tool_progress("k6 finished", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let findings = if exit_code == 0 {
             vec![]
         } else {
-            vec![Finding::new("k6", continuum_core::validator::Severity::Error, "load test failed", None, None)]
+            vec![Finding::new(
+                "k6",
+                continuum_core::validator::Severity::Error,
+                "load test failed",
+                None,
+                None,
+            )]
         };
+        invocation.tool_completed(format!("k6 finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

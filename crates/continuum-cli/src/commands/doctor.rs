@@ -224,7 +224,10 @@ pub async fn run(args: DoctorArgs) -> CmdResult {
             let hb = heartbeats.latest(&run.id).await.unwrap_or(None);
             if let Some(row) = hb {
                 if row.retry_count > 5 {
-                    println!("  \u{2717} Session {} — stuck (retry loop: {} retries)", run.id, row.retry_count);
+                    println!(
+                        "  \u{2717} Session {} — stuck (retry loop: {} retries)",
+                        run.id, row.retry_count
+                    );
                     found_stuck = true;
                 }
             }

@@ -17,14 +17,13 @@ impl ReplayEventRepo {
         target: &str,
         payload: &str,
     ) -> Result<i64, StorageError> {
-        let result = sqlx::query(
-            "INSERT INTO replay_events (session_id, target, payload) VALUES (?, ?, ?)",
-        )
-        .bind(session_id)
-        .bind(target)
-        .bind(payload)
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("INSERT INTO replay_events (session_id, target, payload) VALUES (?, ?, ?)")
+                .bind(session_id)
+                .bind(target)
+                .bind(payload)
+                .execute(&self.pool)
+                .await?;
         Ok(result.last_insert_rowid())
     }
 

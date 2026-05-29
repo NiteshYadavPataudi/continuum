@@ -31,6 +31,7 @@ impl ToolRunner for CargoTest {
         sandbox: &dyn SandboxHandle,
     ) -> Result<ToolReport, ToolError> {
         let start = std::time::Instant::now();
+        invocation.tool_started("starting cargo test", Some(5));
 
         let mut argv = vec!["cargo".into(), "test".into()];
         if !invocation.paths.is_empty() {
@@ -49,6 +50,7 @@ impl ToolRunner for CargoTest {
             .exec(&Cap::grant(), exec)
             .await
             .map_err(|e| ToolError::Sandbox(e.to_string()))?;
+        invocation.tool_progress("sandbox command launched", Some(25));
 
         let mut exit_code = 0;
         let mut stream = std::pin::pin!(stream);
@@ -58,6 +60,7 @@ impl ToolRunner for CargoTest {
                 break;
             }
         }
+        invocation.tool_progress("test process completed", Some(90));
 
         let duration = start.elapsed().as_millis() as u64;
         let passed = exit_code == 0;
@@ -73,6 +76,7 @@ impl ToolRunner for CargoTest {
                 None,
             )]
         };
+        invocation.tool_completed(format!("cargo test finished with exit code {exit_code}"));
         Ok(ToolReport::new(self.id(), findings, exit_code, duration))
     }
 }

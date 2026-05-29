@@ -10,15 +10,50 @@ use tracing_subscriber::util::SubscriberInitExt;
 /// Events consumed by the live dashboard TUI.
 #[derive(Debug, Clone)]
 pub enum DashboardEvent {
-    /// A task node has started.
-    TaskStarted {
+    /// The execution plan has been loaded.
+    PlanLoaded {
+        tasks: Vec<continuum_core::agent::TaskSnapshot>,
+    },
+    /// A task has entered the queue and is waiting on dependencies.
+    TaskQueued {
+        task_id: String,
         agent: String,
         label: String,
+        ready_group: usize,
+        depends_on: Vec<String>,
+    },
+    /// A task node has started.
+    TaskStarted {
+        task_id: String,
+        agent: String,
+        label: String,
+        workspace: Option<String>,
+    },
+    /// A task emitted progress while running.
+    TaskProgress {
+        task_id: String,
+        agent: String,
+        message: String,
+        percent: Option<u8>,
+    },
+    /// A task is blocked on approval, dependencies, or external state.
+    TaskBlocked {
+        task_id: String,
+        agent: String,
+        reason: String,
     },
     /// A task node completed.
     TaskCompleted {
+        task_id: String,
         agent: String,
         status: String,
+        percent: Option<u8>,
+    },
+    /// A task failed.
+    TaskFailed {
+        task_id: String,
+        agent: String,
+        error: String,
     },
     /// Validation stage update.
     ValidationUpdate {
@@ -27,9 +62,21 @@ pub enum DashboardEvent {
         findings: usize,
     },
     /// Token / cost update.
-    CostUpdate {
-        usd: f64,
-        tokens: u64,
+    CostUpdate { usd: f64, tokens: u64 },
+    /// A workspace has been prepared for isolated execution.
+    WorkspacePrepared {
+        task_id: String,
+        agent: String,
+        workspace: String,
+        isolated: bool,
+        source: Option<String>,
+    },
+    /// A merge/conflict event.
+    Merge {
+        task_id: String,
+        workspace: String,
+        merged_files: usize,
+        conflict: Option<String>,
     },
     /// A generic log line.
     Log {
@@ -44,41 +91,22 @@ pub enum DashboardEvent {
 /// Helper to hold an optional OTLP layer alongside the fmt layer.
 /// Builds the subscriber and initialises it.
 pub fn init() {
+    use tracing_subscriber::EnvFilter;
+
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,continuum=debug"));
+
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(true)
         .with_thread_ids(false)
         .with_ansi(true);
 
-    // Build at most one subscriber; use conditional stacking.
-    let subscriber = make_subscriber(fmt_layer);
+    let subscriber = tracing_subscriber::registry().with(filter).with(fmt_layer);
 
     #[cfg(feature = "prometheus")]
     start_prometheus_server();
 
     let _ = subscriber.try_init();
-}
-
-/// Compose the layered subscriber.
-///
-/// We use a Vec of boxed layers so that the type is uniform regardless of
-/// whether OTLP is enabled.
-fn make_subscriber(
-    fmt_layer: impl tracing_subscriber::Layer<tracing_subscriber::Registry>
-        + Send
-        + Sync
-        + 'static,
-) -> impl tracing::Subscriber + Send + Sync {
-    let mut layers: Vec<
-        Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>,
-    > = vec![Box::new(fmt_layer)];
-
-    if let Ok(endpoint) = std::env::var("CONTINUUM_OTLP_ENDPOINT") {
-        if let Some(otlp_layer) = build_otlp_layer(&endpoint) {
-            layers.push(otlp_layer);
-        }
-    }
-
-    tracing_subscriber::registry().with(layers)
 }
 
 fn build_otlp_layer(
@@ -93,13 +121,12 @@ fn build_otlp_layer(
                 .tonic()
                 .with_endpoint(endpoint),
         )
-        .with_trace_config(
-            opentelemetry_sdk::trace::Config::default().with_resource(
-                opentelemetry_sdk::Resource::new(vec![
-                    opentelemetry::KeyValue::new("service.name", "continuum"),
-                ]),
-            ),
-        )
+        .with_trace_config(opentelemetry_sdk::trace::Config::default().with_resource(
+            opentelemetry_sdk::Resource::new(vec![opentelemetry::KeyValue::new(
+                "service.name",
+                "continuum",
+            )]),
+        ))
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .ok()?;
 

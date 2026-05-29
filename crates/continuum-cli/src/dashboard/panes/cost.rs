@@ -23,7 +23,12 @@ impl Widget for CostPane {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Length(3), Constraint::Length(3), Constraint::Length(1)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(1),
+            ])
             .split(inner);
 
         let budget_pct = if self.usd_budget > 0.0 {
@@ -33,13 +38,18 @@ impl Widget for CostPane {
         };
         let gauge = Gauge::default()
             .block(Block::default().title(" Budget "))
-            .gauge_style(Style::default().fg(if budget_pct > 0.8 { Color::Red } else { Color::Green }))
+            .gauge_style(Style::default().fg(if budget_pct > 0.8 {
+                Color::Red
+            } else {
+                Color::Green
+            }))
             .ratio(budget_pct);
         gauge.render(chunks[0], buf);
 
-        let cost_line = Line::from(vec![
-            Span::raw(format!(" USD: ${:.4} / ${:.4}", self.usd_spent, self.usd_budget)),
-        ]);
+        let cost_line = Line::from(vec![Span::raw(format!(
+            " USD: ${:.4} / ${:.4}",
+            self.usd_spent, self.usd_budget
+        ))]);
         Paragraph::new(cost_line).render(chunks[1], buf);
 
         let token_line = Line::from(vec![

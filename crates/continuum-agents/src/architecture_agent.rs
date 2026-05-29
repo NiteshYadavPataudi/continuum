@@ -61,7 +61,7 @@ impl Agent for ArchitectureAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
@@ -77,8 +77,14 @@ impl Agent for ArchitectureAgent {
             .get("arch_summary")
             .and_then(|v| v.as_str())
             .unwrap_or("(no architecture summary provided)");
+        ctx.task_progress(
+            AgentKind::Architecture,
+            "starting architecture review",
+            Some(10),
+        );
 
         let (findings, verdict) = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Architecture, "calling model", Some(25));
             let prompt = format!(
                 r#"You are an architecture review agent. Review the following diff for architectural issues.
 
@@ -111,10 +117,8 @@ Return ONLY valid JSON (no markdown fences):
 }}"#
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
                 .await
@@ -127,6 +131,7 @@ Return ONLY valid JSON (no markdown fences):
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Architecture, "model response received", Some(75));
 
             let json = parse_json_response(&raw);
             let findings = json
@@ -142,6 +147,8 @@ Return ONLY valid JSON (no markdown fences):
         } else {
             (serde_json::json!([]), "pass".to_string())
         };
+
+        ctx.task_progress(AgentKind::Architecture, "finalizing review", Some(95));
 
         let error_count = findings
             .as_array()

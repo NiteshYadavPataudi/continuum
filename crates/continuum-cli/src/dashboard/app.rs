@@ -90,32 +90,194 @@ impl DashboardApp {
     fn handle_event(&mut self, event: DashboardEvent) {
         use DashboardEvent::*;
         match event {
-            TaskStarted { agent, label } => {
-                self.plan.nodes.push(PlanNodeState {
-                    label: label.clone(),
-                    agent: agent.clone(),
-                    status: NodeStatus::Running,
-                    retries: 0,
-                    usd: 0.0,
-                });
+            PlanLoaded { tasks } => {
+                self.plan.nodes.clear();
+                self.plan.nodes.extend(tasks.into_iter().map(|task| {
+                    PlanNodeState {
+                        task_id: task.task_id.to_string(),
+                        label: task.label,
+                        agent: format!("{:?}", task.agent),
+                        status: NodeStatus::Pending,
+                        depends_on: task
+                            .depends_on
+                            .into_iter()
+                            .map(|id| id.to_string())
+                            .collect(),
+                        percent: Some(0),
+                        retries: 0,
+                        usd: 0.0,
+                    }
+                }));
                 self.log.lines.push(LogLine {
                     level: "INFO".into(),
                     target: "scheduler".into(),
-                    message: format!("{agent}: {label}"),
+                    message: format!("loaded plan with {} task(s)", self.plan.nodes.len()),
                 });
             }
-            TaskCompleted { agent, status } => {
-                if let Some(node) = self.plan.nodes.iter_mut().rev().find(|n| n.agent == agent) {
+            TaskQueued {
+                task_id,
+                agent,
+                label,
+                ready_group,
+                depends_on,
+            } => {
+                if self.plan.nodes.iter().all(|n| n.task_id != task_id) {
+                    self.plan.nodes.push(PlanNodeState {
+                        task_id: task_id.clone(),
+                        label: label.clone(),
+                        agent: agent.clone(),
+                        status: NodeStatus::Pending,
+                        depends_on,
+                        percent: Some(0),
+                        retries: ready_group as u32,
+                        usd: 0.0,
+                    });
+                }
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "scheduler".into(),
+                    message: format!("queued {task_id} for {agent}: {label}"),
+                });
+            }
+            TaskStarted {
+                task_id,
+                agent,
+                label,
+                workspace,
+            } => {
+                if let Some(node) = self.plan.nodes.iter_mut().find(|n| n.task_id == task_id) {
+                    node.status = NodeStatus::Running;
+                    node.percent = Some(5);
+                } else {
+                    self.plan.nodes.push(PlanNodeState {
+                        task_id: task_id.clone(),
+                        label: label.clone(),
+                        agent: agent.clone(),
+                        status: NodeStatus::Running,
+                        depends_on: Vec::new(),
+                        percent: Some(5),
+                        retries: 0,
+                        usd: 0.0,
+                    });
+                }
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "scheduler".into(),
+                    message: format!(
+                        "{agent}: started {label} ({task_id}){}",
+                        workspace
+                            .as_deref()
+                            .map(|w| format!(" @ {w}"))
+                            .unwrap_or_default()
+                    ),
+                });
+            }
+            TaskProgress {
+                task_id,
+                agent,
+                message,
+                percent,
+            } => {
+                if let Some(node) = self.plan.nodes.iter_mut().find(|n| n.task_id == task_id) {
+                    node.percent = percent.or(node.percent);
+                }
+                if let Some(p) = percent {
+                    self.log.lines.push(LogLine {
+                        level: "INFO".into(),
+                        target: "scheduler".into(),
+                        message: format!("{agent} [{task_id}] {p}% {message}"),
+                    });
+                } else {
+                    self.log.lines.push(LogLine {
+                        level: "INFO".into(),
+                        target: "scheduler".into(),
+                        message: format!("{agent} [{task_id}] {message}"),
+                    });
+                }
+            }
+            TaskBlocked {
+                task_id,
+                agent,
+                reason,
+            } => {
+                if let Some(node) = self.plan.nodes.iter_mut().find(|n| n.task_id == task_id) {
+                    node.status = NodeStatus::Blocked;
+                    node.percent = Some(node.percent.unwrap_or(0));
+                }
+                self.log.lines.push(LogLine {
+                    level: "WARN".into(),
+                    target: "scheduler".into(),
+                    message: format!("{agent}: blocked {task_id} ({reason})"),
+                });
+            }
+            TaskCompleted {
+                task_id,
+                agent,
+                status,
+                percent,
+            } => {
+                if let Some(node) = self.plan.nodes.iter_mut().find(|n| n.task_id == task_id) {
                     node.status = match status.as_str() {
                         "done" | "success" | "passed" => NodeStatus::Done,
                         "failed" | "error" => NodeStatus::Failed,
                         _ => NodeStatus::Done,
                     };
+                    node.percent = percent.or(Some(100));
                 }
                 self.log.lines.push(LogLine {
                     level: "INFO".into(),
                     target: "scheduler".into(),
-                    message: format!("{agent}: {status}"),
+                    message: format!("{agent}: {status} ({task_id})"),
+                });
+            }
+            TaskFailed {
+                task_id,
+                agent,
+                error,
+            } => {
+                if let Some(node) = self.plan.nodes.iter_mut().find(|n| n.task_id == task_id) {
+                    node.status = NodeStatus::Failed;
+                    node.percent = Some(node.percent.unwrap_or(0));
+                }
+                self.log.lines.push(LogLine {
+                    level: "ERROR".into(),
+                    target: "scheduler".into(),
+                    message: format!("{agent}: {error} ({task_id})"),
+                });
+            }
+            WorkspacePrepared {
+                task_id,
+                agent,
+                workspace,
+                isolated,
+                source,
+            } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "workspace".into(),
+                    message: format!(
+                        "{agent}: workspace prepared {workspace} for {task_id}{}{}",
+                        if isolated { " [isolated]" } else { "" },
+                        source.map(|s| format!(" from {s}")).unwrap_or_default()
+                    ),
+                });
+            }
+            Merge {
+                task_id,
+                workspace,
+                merged_files,
+                conflict,
+            } => {
+                let level = if conflict.is_some() { "WARN" } else { "INFO" };
+                self.log.lines.push(LogLine {
+                    level: level.into(),
+                    target: "merge".into(),
+                    message: format!(
+                        "{task_id}: merged {merged_files} file(s) from {workspace}{}",
+                        conflict
+                            .map(|c| format!(" (conflict: {c})"))
+                            .unwrap_or_default()
+                    ),
                 });
             }
             ValidationUpdate {

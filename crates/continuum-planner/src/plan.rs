@@ -70,10 +70,7 @@ Rules:
         constraints = constraints_str,
     );
 
-    let req = CompletionRequest::new(
-        model_id,
-        vec![Message::new("user", &prompt)],
-    );
+    let req = CompletionRequest::new(model_id, vec![Message::new("user", &prompt)]);
 
     let cancel = continuum_core::CancellationToken::new();
     let mut stream = provider
@@ -180,10 +177,7 @@ fn parse_llm_plan(raw: &str, goal_prompt: &str) -> Result<ExecutionPlan, PlanErr
 fn strip_fences(s: &str) -> &str {
     let s = s.trim();
     // Strip ```json ... ``` or ``` ... ```
-    if let Some(inner) = s
-        .strip_prefix("```json")
-        .or_else(|| s.strip_prefix("```"))
-    {
+    if let Some(inner) = s.strip_prefix("```json").or_else(|| s.strip_prefix("```")) {
         if let Some(end) = inner.rfind("```") {
             return inner[..end].trim();
         }

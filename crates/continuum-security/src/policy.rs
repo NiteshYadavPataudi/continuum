@@ -18,7 +18,9 @@ impl std::str::FromStr for HardeningMode {
             "audit" => Ok(Self::Audit),
             "hardening" => Ok(Self::Hardening),
             "enterprise" => Ok(Self::Enterprise),
-            _ => Err(format!("unknown mode '{s}'; expected audit, hardening, or enterprise")),
+            _ => Err(format!(
+                "unknown mode '{s}'; expected audit, hardening, or enterprise"
+            )),
         }
     }
 }

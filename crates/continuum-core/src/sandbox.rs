@@ -109,7 +109,11 @@ pub trait SandboxHandle: Send + Sync {
     fn id(&self) -> SandboxId;
 
     /// Execute a process inside the sandbox, streaming stdout/stderr.
-    async fn exec(&self, _cap: &Cap<HostExec>, cmd: ExecRequest) -> Result<ExecStream, SandboxError>;
+    async fn exec(
+        &self,
+        _cap: &Cap<HostExec>,
+        cmd: ExecRequest,
+    ) -> Result<ExecStream, SandboxError>;
 
     /// Write a file inside the sandbox.
     async fn write_file(&self, path: &Path, bytes: &[u8]) -> Result<(), SandboxError>;

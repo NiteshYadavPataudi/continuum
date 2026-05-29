@@ -1,5 +1,5 @@
-use continuum_security::{HardeningMode, SecurityPolicy, SeverityFloor};
 use continuum_core::caps::{CallModels, HostExec, NetworkEgress, ReadSecrets};
+use continuum_security::{HardeningMode, SecurityPolicy, SeverityFloor};
 
 #[test]
 fn test_audit_mode_no_caps() {
@@ -57,8 +57,17 @@ fn test_severity_floor_enterprise_allows_all() {
 
 #[test]
 fn test_hardening_mode_parse() {
-    assert_eq!("audit".parse::<HardeningMode>().unwrap(), HardeningMode::Audit);
-    assert_eq!("hardening".parse::<HardeningMode>().unwrap(), HardeningMode::Hardening);
-    assert_eq!("enterprise".parse::<HardeningMode>().unwrap(), HardeningMode::Enterprise);
+    assert_eq!(
+        "audit".parse::<HardeningMode>().unwrap(),
+        HardeningMode::Audit
+    );
+    assert_eq!(
+        "hardening".parse::<HardeningMode>().unwrap(),
+        HardeningMode::Hardening
+    );
+    assert_eq!(
+        "enterprise".parse::<HardeningMode>().unwrap(),
+        HardeningMode::Enterprise
+    );
     assert!("invalid".parse::<HardeningMode>().is_err());
 }

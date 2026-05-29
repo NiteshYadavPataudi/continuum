@@ -37,10 +37,7 @@ impl Widget for LogPane {
                     _ => Color::DarkGray,
                 };
                 Line::from(vec![
-                    Span::styled(
-                        format!(" {} ", l.level),
-                        Style::default().fg(level_color),
-                    ),
+                    Span::styled(format!(" {} ", l.level), Style::default().fg(level_color)),
                     Span::styled(&l.message, Style::default().fg(Color::White)),
                 ])
             })

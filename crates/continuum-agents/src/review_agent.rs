@@ -62,7 +62,7 @@ impl Agent for ReviewAgent {
     async fn handle(
         &self,
         task: AgentTask,
-        _ctx: &AgentContext,
+        ctx: &AgentContext,
         cancel: CancellationToken,
     ) -> Result<AgentOutcome, AgentError> {
         let payload = &task.payload;
@@ -78,8 +78,10 @@ impl Agent for ReviewAgent {
             .get("goal")
             .and_then(|v| v.as_str())
             .unwrap_or("(no goal)");
+        ctx.task_progress(AgentKind::Review, "starting review", Some(10));
 
         let (comments, verdict) = if let Some(ref provider) = self.model {
+            ctx.task_progress(AgentKind::Review, "calling model", Some(25));
             let prompt = format!(
                 r#"You are a code review agent. Perform a thorough review of the following diff.
 
@@ -114,10 +116,8 @@ Return ONLY valid JSON (no markdown fences):
 }}"#
             );
 
-            let req = CompletionRequest::new(
-                self.model_id.clone(),
-                vec![Message::new("user", &prompt)],
-            );
+            let req =
+                CompletionRequest::new(self.model_id.clone(), vec![Message::new("user", &prompt)]);
             let mut stream = provider
                 .complete(&Cap::grant(), req, cancel.child_token())
                 .await
@@ -130,6 +130,7 @@ Return ONLY valid JSON (no markdown fences):
                     Err(e) => return Err(AgentError::Other(format!("stream error: {e}"))),
                 }
             }
+            ctx.task_progress(AgentKind::Review, "model response received", Some(75));
 
             let json = parse_json_response(&raw);
             let comments = json
@@ -145,6 +146,8 @@ Return ONLY valid JSON (no markdown fences):
         } else {
             (serde_json::json!([]), "pass".to_string())
         };
+
+        ctx.task_progress(AgentKind::Review, "finalizing review", Some(95));
 
         let error_count = comments
             .as_array()
