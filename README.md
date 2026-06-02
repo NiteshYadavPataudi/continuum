@@ -3,7 +3,8 @@
   <img src="https://img.shields.io/badge/rust-1.78%2B-orange" alt="Rust 1.78+"/>
   <img src="https://img.shields.io/badge/license-Apache--2.0%20%7C%20MIT-blue" alt="License"/>
   <img src="https://img.shields.io/badge/crates-24-8A2BE2" alt="24 crates"/>
-  <img src="https://img.shields.io/badge/providers-10-green" alt="10 providers"/>
+  <img src="https://img.shields.io/badge/providers-125-green" alt="125 providers"/>
+  <img src="https://img.shields.io/badge/models-2000%2B-green" alt="2000+ models"/>
   <img src="https://img.shields.io/badge/tests-72-passing-brightgreen" alt="72 tests"/>
   <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI passing"/>
 </p>
@@ -46,8 +47,7 @@ This triggers:
 | **8 specialized agents** | Planner, Architecture, Coding, Testing, Security, Review, Memory, Recovery — coordinated by a DAG scheduler |
 | **10-stage validation pipeline** | Compile → Lint → TypeCheck → Unit → Integration → E2E → SecurityScan → Startup → Performance → Regression |
 | **Rust + TypeScript + Python** | Language-aware validation with Biome, Vitest, pytest, cargo |
-| **10 LLM providers** | Anthropic, OpenAI, Gemini, Groq, DeepSeek, Mistral, Cohere, Together, Fireworks, Ollama |
-| **40+ models** | Vendored model registry, build-time codegen, zero-overhead lookups |
+| **125 providers, 2000+ models** | Anthropic, OpenAI, Google, DeepSeek, Mistral, xAI, Meta/Llama, Cohere, Groq, Cerebras, Together, Fireworks, Perplexity, GitHub Copilot, and 110+ more — all via vendored models.dev registry |
 | **3-tier memory engine** | Hot (SQLite) → Warm (LLM summaries) → Cold (vector embeddings) |
 | **Crash recovery** | Checkpoint after every plan node; resume, replay, and rollback |
 | **Security hardening** | 3 modes: audit / hardening / enterprise with compliance attestation |
@@ -262,9 +262,10 @@ The live TUI provides real-time visibility into execution:
 └────────────────┘ └───────────┘ └─────────────────┘
                           │
 ┌─────────────────────────▼───────────────────────────────┐
-│  Model Providers (10 providers, 40+ models)               │
-│  Anthropic · OpenAI · Gemini · Groq · DeepSeek · Mistral │
-│  Cohere · Together · Fireworks · Ollama                  │
+│  Model Providers (125 providers, 2000+ models, vendored registry)     │
+│  Anthropic · OpenAI · Google · DeepSeek · Mistral · xAI · Cohere      │
+│  Meta/Llama · Groq · Cerebras · Together · Fireworks · Perplexity     │
+│  GitHub Copilot · OpenRouter · +110 more                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -272,20 +273,33 @@ The live TUI provides real-time visibility into execution:
 
 ## Model Providers
 
-| Provider | Env var | Notable models |
-|---|---|---|
-| Anthropic | `ANTHROPIC_API_KEY` | Claude Sonnet 4/4.5, Haiku 4/4.5, Opus 4.5 |
-| OpenAI | `OPENAI_API_KEY` | GPT-4o, GPT-4o Mini, o1, o3-mini |
-| Google | `GEMINI_API_KEY` | Gemini 2.5 Pro/Flash, 1.5 Pro/Flash |
-| Groq | `GROQ_API_KEY` | Llama 3.3 70B, Mixtral, Gemma2 |
-| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek V3, R1 |
-| Mistral | `MISTRAL_API_KEY` | Large, Small, Codestral |
-| Cohere | `COHERE_API_KEY` | Command R+, Command R |
-| Together | `TOGETHER_API_KEY` | Llama 3.1, Qwen 2.5, Mixtral |
-| Fireworks | `FIREWORKS_API_KEY` | Llama 3.3, DeepSeek R1 |
-| Ollama | *(none)* | llama3.2, qwen2.5, codellama |
+Continuum ships with a vendored snapshot of [models.dev](https://models.dev) containing **125 providers** and **2,000+ models**. Any OpenAI-compatible API works via `CompatProvider`.
 
-Any OpenAI-compatible API works via `CompatProvider`.
+### First-party providers (native Rust implementations)
+
+| Provider | Env var | Key frontier models |
+|---|---|---|
+| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Opus 4.8, Opus 4.5, Sonnet 4.6 (1M ctx), Haiku 4.5 |
+| **OpenAI** | `OPENAI_API_KEY` | GPT-5.5 Pro, GPT-5.4, o4-mini, o3-pro, GPT-4.1, GPT-4o |
+| **Google** | `GEMINI_API_KEY` | Gemini 3.5 Flash, Gemini 3.1 Pro/Flash, Gemini 2.5 Pro/Flash |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | DeepSeek V4 Pro, V4 Flash, Chat (1M ctx, 384K output) |
+| **Mistral** | `MISTRAL_API_KEY` | Mistral Large 2512 (262K ctx), Medium 2604, Codestral |
+| **xAI** | `XAI_API_KEY` | Grok 4.3, Grok 4.20 (2M ctx reasoning + non-reasoning) |
+| **Cohere** | `COHERE_API_KEY` | Command A Reasoning, Command A 03-2025, Command R+ |
+| **Meta Llama** | `LLAMA_API_KEY` | Llama 4 Maverick, Llama 4 Scout, Llama 3.3 70B |
+| **GitHub Copilot** | `GITHUB_TOKEN` | Claude 4.5 Sonnet, GPT-5, Gemini 3 Pro, o4-mini |
+| **GitHub Models** | `GITHUB_TOKEN` | 55 models including frontier + open-source |
+| **Perplexity** | `PERPLEXITY_API_KEY` | Sonar Reasoning Pro, Sonar Pro, Sonar Deep Research |
+| **Together AI** | `TOGETHER_API_KEY` | DeepSeek R1, Llama 4, Qwen 2.5, Mixtral |
+| **Fireworks AI** | `FIREWORKS_API_KEY` | Llama 4 Maverick/Scout, DeepSeek R1/V3, Qwen 2.5 |
+| **Groq** | `GROQ_API_KEY` | Llama 4 Maverick/Scout, Llama 3.3 70B, Mixtral |
+| **Cerebras** | `CEREBRAS_API_KEY` | Llama 4 Maverick/Scout (fast inference) |
+| **OpenRouter** | `OPENROUTER_API_KEY` | 355+ models — all frontier and open-source |
+| **Ollama** | *(localhost)* | llama3.2, qwen2.5, codellama, mistral |
+
+### Additional providers via registry (110+ more)
+
+The vendored registry also includes: Alibaba (DashScope), Amazon Bedrock, Azure, Cloudflare Workers AI, Databricks, DigitalOcean, Hugging Face, NVIDIA, Perplexity Sonar, Vertex AI, Vercel AI Gateway, and 80+ more AI gateway/reseller providers. Any OpenAI-compatible endpoint is supported through `CompatProvider`.
 
 ---
 
