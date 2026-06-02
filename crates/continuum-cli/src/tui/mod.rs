@@ -36,6 +36,16 @@ pub fn run_tui(session: ReplSession) -> Result<(), Box<dyn std::error::Error>> {
     run_tui_with_events(session, None)
 }
 
+/// Drops terminal raw mode on exit (even on panic).
+struct TuiResetGuard;
+
+impl Drop for TuiResetGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+    }
+}
+
 /// Run the full-screen TUI with a live dashboard event stream.
 pub fn run_tui_with_events(
     session: ReplSession,
@@ -45,6 +55,7 @@ pub fn run_tui_with_events(
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
+    let _guard = TuiResetGuard;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 

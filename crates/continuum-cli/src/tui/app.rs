@@ -1,12 +1,9 @@
 //! Main TUI application for Continuum.
 //!
-//! Renders the full-screen terminal UI with:
-//! - Header bar (app name, model, project, git, mode, tokens)
-//! - Main conversation timeline
+//! Full-screen terminal UI with live token tracking, model/provider status,
+//! error display, task progress percentage, and real-time dashboard events.
 
-#![allow(dead_code, clippy::struct_excessive_bools)]
-//! - Right sidebar (agent activity, models, files)
-//! - Bottom composer (input, hints, status)
+#![allow(clippy::struct_excessive_bools)]
 
 use ratatui::style::Style;
 use tokio::sync::broadcast;
@@ -30,7 +27,7 @@ pub enum ActivePanel {
     ApprovalPrompt,
 }
 
-/// TUI application state.
+/// TUI application state with live telemetry tracking.
 pub struct TuiApp {
     pub theme: Theme,
     pub active_panel: ActivePanel,
@@ -46,6 +43,18 @@ pub struct TuiApp {
     pub slash_matches: Vec<SlashCommand>,
     pub slash_selected_index: usize,
     pub event_rx: Option<broadcast::Receiver<DashboardEvent>>,
+    pub event_tx: Option<broadcast::Sender<DashboardEvent>>,
+    /// Live cost tracking
+    pub total_cost_usd: f64,
+    pub total_tokens_in: u64,
+    pub total_tokens_out: u64,
+    /// Model/provider error state
+    pub model_error: Option<String>,
+    pub provider_configured: bool,
+    /// Validation summary tracking
+    pub validation_passed: usize,
+    pub validation_failed: usize,
+    pub validation_total: usize,
 }
 
 /// A message in the conversation.
@@ -196,6 +205,7 @@ impl AppStatus {
 impl TuiApp {
     /// Create a new TUI app.
     pub fn new(session: ReplSession) -> Self {
+        let (tx, rx) = broadcast::channel(512);
         Self {
             theme: Theme::default(),
             active_panel: ActivePanel::Composer,
@@ -226,7 +236,16 @@ impl TuiApp {
             should_exit: false,
             slash_matches: Vec::new(),
             slash_selected_index: 0,
-            event_rx: None,
+            event_rx: Some(rx),
+            event_tx: Some(tx),
+            total_cost_usd: 0.0,
+            total_tokens_in: 0,
+            total_tokens_out: 0,
+            model_error: None,
+            provider_configured: false,
+            validation_passed: 0,
+            validation_failed: 0,
+            validation_total: 0,
         }
     }
 
@@ -639,21 +658,40 @@ impl TuiApp {
                 passed,
                 findings,
             } => {
-                self.add_system_message(&format!(
-                    "Validation {stage}: {} ({findings} findings)",
-                    if passed { "passed" } else { "failed" }
-                ));
+                self.validation_total += 1;
+                if passed {
+                    self.validation_passed += 1;
+                } else {
+                    self.validation_failed += 1;
+                }
+                let status_str = if passed { "passed" } else { "failed" };
+                self.add_system_message(&format!("Validation {stage}: {status_str} ({findings} findings)"));
             }
             DashboardEvent::CostUpdate { usd, tokens } => {
+                self.total_cost_usd = usd;
                 self.agent_activity.tokens_used = tokens;
-                self.add_system_message(&format!("Cost update: ${usd:.4}, {tokens} tokens"));
+                self.total_tokens_in += tokens / 2; // approximate split
+                self.total_tokens_out += tokens / 2;
+                // Show cost in header via system message (throttled)
+                if self.messages.iter().filter(|m| matches!(m.role, MessageRole::System)).count() < 50 {
+                    self.add_system_message(&format!("Cost: ${usd:.4} | Tokens: {tokens}"));
+                }
             }
             DashboardEvent::Log {
                 level,
                 target,
                 message,
             } => {
-                self.add_system_message(&format!("[{level}] {target}: {message}"));
+                // Track model errors
+                if level == "ERROR" || level == "WARN" {
+                    if message.contains("model") || message.contains("API") || message.contains("provider") {
+                        self.model_error = Some(format!("{}: {}", target, message));
+                    }
+                }
+                // Only show important logs to avoid spam
+                if level == "ERROR" || level == "WARN" || target == "executor" {
+                    self.add_system_message(&format!("[{level}] {target}: {message}"));
+                }
             }
             DashboardEvent::Shutdown => {
                 self.status = AppStatus::Ready;

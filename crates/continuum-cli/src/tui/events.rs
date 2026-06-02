@@ -1,6 +1,8 @@
 //! Event handling for the TUI.
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use continuum_core::planner::Planner;
+use continuum_core::repo::RepoLoader;
 
 use super::app::*;
 
@@ -8,6 +10,11 @@ use super::app::*;
 pub fn handle_event(app: &mut TuiApp, event: Event) -> bool {
     match event {
         Event::Key(key) => {
+            // Dismiss model error on any key press
+            if app.model_error.is_some() {
+                app.model_error = None;
+            }
+
             // Global shortcuts (work in any panel)
             match (key.modifiers, key.code) {
                 (KeyModifiers::CONTROL, KeyCode::Char('c')) => return true,
@@ -49,8 +56,9 @@ pub fn handle_event(app: &mut TuiApp, event: Event) -> bool {
                 ActivePanel::Sidebar => handle_sidebar_input(app, key),
             }
         }
-        Event::Resize(_, _) => {
-            // Terminal resized, UI will re-render
+        Event::Resize(cols, rows) => {
+            // Terminal resized, UI will re-render on next draw
+            tracing::debug!("terminal resized to {cols}x{rows}");
             false
         }
         _ => false,
@@ -387,28 +395,67 @@ fn handle_slash_command(app: &mut TuiApp, input: &str) {
     app.refresh_slash_matches();
 }
 
-/// Simulate an agent response (placeholder for real LLM integration).
-fn simulate_agent_response(app: &mut TuiApp, _input: &str) {
+/// Spawn a real scheduler execution and stream events to the TUI.
+fn simulate_agent_response(app: &mut TuiApp, input: &str) {
     app.status = AppStatus::Thinking;
-
-    // Add some placeholder tasks
     app.add_task("Analyze repository");
-    app.update_task_status(0, super::app::TaskStatus::Completed);
-    app.add_task("Plan changes");
-    app.update_task_status(1, super::app::TaskStatus::Running);
+    app.add_task("Plan execution");
+    app.add_task("Execute agents");
     app.set_current_step("Analyzing code structure");
 
-    // Simulate response
-    app.add_assistant_message(
-        "I'll help you with that. Let me analyze the codebase first.\n\n\
-         [Planning phase started]\n\
-         Analyzing repository structure...\n\
-         Identifying relevant files...\n\n\
-         Note: Full LLM integration will be wired in the next iteration.\n\
-         For now, use `continuum execute --goal \"your goal\"` for full execution.",
-    );
+    // Use the app's own broadcast sender
+    let event_tx = match app.event_tx.clone() {
+        Some(tx) => tx,
+        None => {
+            app.add_assistant_message("No event channel available for live execution.");
+            app.status = AppStatus::Ready;
+            app.clear_current_step();
+            return;
+        }
+    };
 
-    app.status = AppStatus::Ready;
+    let provider = app.session.provider.clone();
+    let config = app.session.config.clone();
+    let input_owned = input.to_string();
+    let input_msg = input_owned.clone();
+    let root = std::env::current_dir().unwrap_or_default();
+
+    tokio::spawn(async move {
+        let model_provider = continuum_models::load_from_config(&config, &provider);
+        let cancel = continuum_core::CancellationToken::new();
+        let scheduler = continuum_runtime::Scheduler::with_models(model_provider, None);
+        let session = continuum_runtime::Session::new().with_workspace_root(root.clone());
+
+        if let Ok(docs) = continuum_markdown::load(&root) {
+            let loader = continuum_repo::Loader::new(root.clone());
+            if let Ok(index) = loader
+                .build(
+                    &root,
+                    continuum_core::repo::IndexOptions {
+                        respect_gitignore: true,
+                        max_files: 10000,
+                    },
+                )
+                .await
+            {
+                let engine = continuum_planner::PlanningEngine::new(
+                    continuum_models::load_from_config(&config, &provider),
+                    continuum_core::ids::ModelId::new("default"),
+                );
+                let goal = continuum_core::planner::Goal::new(&input_owned);
+                if let Ok(analysis) = engine.analyze(index, &docs).await {
+                    if let Ok(plan) = engine.plan(goal, &analysis).await {
+                        let _ = scheduler
+                            .run_with_session_events(&plan, &session, cancel, Some(event_tx))
+                            .await;
+                    }
+                }
+            }
+        }
+    });
+
+    let msg = format!("Executing: {}\n\n[Live execution started]", input_msg);
+    app.add_assistant_message(&msg);
+    app.status = AppStatus::RunningCommand;
     app.clear_current_step();
-    app.update_task_status(1, super::app::TaskStatus::Completed);
 }

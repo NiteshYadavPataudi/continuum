@@ -1,5 +1,7 @@
 //! Slash command handlers for the REPL.
 
+use continuum_core::planner::Planner;
+use continuum_core::repo::RepoLoader;
 use continuum_models_registry::{MODELS, PROVIDERS};
 
 use super::{EffortLevel, ReplSession};
@@ -60,7 +62,7 @@ pub async fn handle_slash_command(session: &mut ReplSession, input: &str) -> boo
     false
 }
 
-/// Execute a natural language goal.
+/// Execute a natural language goal by running the full planning + execution pipeline.
 pub async fn execute_goal(session: &mut ReplSession, goal: &str) {
     session.message_count += 1;
 
@@ -74,19 +76,96 @@ pub async fn execute_goal(session: &mut ReplSession, goal: &str) {
     println!("  [analyzing repository...]");
     println!();
 
-    // For now, show what would happen
-    println!("  Goal: {safe_goal}");
-    println!("  Model: {} ({})", session.model, session.provider);
-    println!("  Effort: {}", session.effort.as_str());
-    println!();
-
-    // TODO: Wire up to the actual planning engine
-    // This is where we'd call continuum_planner::PlanningEngine
-    println!("  [planning...]");
-    println!("  [executing...]");
-    println!();
-    println!("  Note: Full execution pipeline will be wired in the next iteration.");
-    println!("  For now, use `continuum execute --goal \"{safe_goal}\"` for full execution.");
+    let root = std::env::current_dir().unwrap_or_default();
+    match continuum_markdown::load(&root) {
+        Ok(docs) => {
+            let loader = continuum_repo::Loader::new(root.clone());
+            match loader
+                .build(
+                    &root,
+                    continuum_core::repo::IndexOptions {
+                        respect_gitignore: true,
+                        max_files: 10000,
+                    },
+                )
+                .await
+            {
+                Ok(index) => {
+                    let mprov = continuum_models::load_from_config(
+                        &session.config,
+                        &session.provider,
+                    );
+                    let model_id = continuum_core::ids::ModelId::new(&session.model);
+                    let engine = continuum_planner::PlanningEngine::new(
+                        mprov.clone(),
+                        model_id.clone(),
+                    );
+                    let engine_goal = continuum_core::planner::Goal::new(&safe_goal);
+                    match engine.analyze(index, &docs).await {
+                        Ok(analysis) => {
+                            println!("  Analysis: {}", analysis.summary);
+                            println!("  [planning...]");
+                            match engine.plan(engine_goal, &analysis).await {
+                                Ok(plan) => {
+                                    println!("  Plan: {} node(s)", plan.nodes.len());
+                                    println!("  [executing...]");
+                                    let cancel = continuum_core::CancellationToken::new();
+                                    let scheduler =
+                                        continuum_runtime::Scheduler::with_models(mprov, None);
+                                    let runtime_session = continuum_runtime::Session::new()
+                                        .with_workspace_root(root.clone());
+                                    match scheduler
+                                        .run_with_session(&plan, &runtime_session, cancel)
+                                        .await
+                                    {
+                                        Ok(outcomes) => {
+                                            println!();
+                                            println!("  Execution complete: {} task(s)",
+                                                outcomes.len());
+                                            for outcome in &outcomes {
+                                                let status = outcome
+                                                    .artifacts
+                                                    .get("status")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("done");
+                                                let agent = outcome
+                                                    .artifacts
+                                                    .get("agent")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("agent");
+                                                println!("  · [{agent}] {status}");
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("  Execution failed: {e}");
+                                            println!("  Use `continuum execute --goal \"{safe_goal}\"` for detailed output.");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("  Planning failed: {e}");
+                                    println!("  Use `continuum execute --goal \"{safe_goal}\"` from the terminal instead.");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("  Analysis failed: {e}");
+                            println!("  Use `continuum execute --goal \"{safe_goal}\"` from the terminal instead.");
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("  Index build failed: {e}");
+                    println!("  Using simplified mode...");
+                    println!("  Note: Full execution pipeline is available via `continuum execute --goal \"{safe_goal}\"`.");
+                }
+            }
+        }
+        Err(e) => {
+            println!("  Doc load failed: {e}");
+            println!("  Run `continuum init` first to scaffold engineering docs.");
+        }
+    }
     println!();
 }
 

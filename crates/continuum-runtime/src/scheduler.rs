@@ -282,6 +282,7 @@ impl Scheduler {
                 let session_id = session.id;
                 let memory = session.memory.clone();
                 let recovery = session.recovery.clone();
+                let sandbox = session.sandbox.clone();
                 let reporter = reporter.clone();
                 let cancel = cancel.child_token();
                 let completed_nodes = completed_nodes.clone();
@@ -302,6 +303,7 @@ impl Scheduler {
                         task_base_root,
                         memory,
                         recovery,
+                        sandbox,
                         cancel,
                         reporter,
                         permit_limit,
@@ -339,6 +341,7 @@ impl Scheduler {
                 })?;
                 let memory = session.memory.clone();
                 let recovery = session.recovery.clone();
+                let sandbox = session.sandbox.clone();
                 let reporter = reporter.clone();
                 let cancel = cancel.child_token();
                 let completed_nodes = completed_nodes.clone();
@@ -356,6 +359,7 @@ impl Scheduler {
                     base_root.clone(),
                     memory,
                     recovery,
+                    sandbox,
                     cancel,
                     reporter,
                     permit_limit,
@@ -924,6 +928,7 @@ async fn execute_task_node(
     base_root: PathBuf,
     memory: Option<Arc<dyn continuum_core::memory::MemoryStore>>,
     recovery: Option<Arc<dyn continuum_core::recovery::RecoveryStore>>,
+    sandbox: Option<Arc<dyn continuum_core::sandbox::SandboxHandle>>,
     cancel: CancellationToken,
     reporter: Option<Arc<dyn ExecutionEventSink>>,
     agent_limit: Arc<Semaphore>,
@@ -981,11 +986,58 @@ async fn execute_task_node(
             node.id,
             node.agent_kind,
             "persisting outcome".into(),
-            Some(80),
+            Some(60),
         );
     }
 
     write_task_artifacts(&workspace_path, &node, &outcome)?;
+
+    if let Some(reporter) = reporter.as_ref() {
+        reporter.task_progress(
+            node.id,
+            node.agent_kind,
+            "running validation pipeline".into(),
+            Some(70),
+        );
+    }
+
+    let mut validation_reports = Vec::new();
+    if let Some(ref sandbox_h) = sandbox {
+        let target = continuum_validation::ValidationTarget::new(workspace_path.clone())
+            .with_sandbox(sandbox_h.clone());
+        let pipeline = continuum_validation::Pipeline::new();
+        let result = pipeline.run(&target).await;
+        validation_reports = result.reports;
+        if !result.passed {
+            for report in &validation_reports {
+                if !report.passed {
+                    tracing::warn!(
+                        stage = ?report.stage,
+                        findings = report.findings.len(),
+                        "validation stage failed"
+                    );
+                }
+            }
+        }
+    }
+
+    if let Some(reporter) = reporter.as_ref() {
+        for report in &validation_reports {
+            if !report.passed {
+                reporter.tool_failed(
+                    node.id,
+                    format!("validate/{:?}", report.stage),
+                    format!("{} finding(s)", report.findings.len()),
+                );
+            } else {
+                reporter.tool_completed(
+                    node.id,
+                    format!("validate/{:?}", report.stage),
+                    format!("passed ({}ms)", report.duration_ms),
+                );
+            }
+        }
+    }
 
     if let Some(ref memory) = memory {
         let item = MemoryItem::new(
