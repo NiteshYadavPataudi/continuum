@@ -30,9 +30,9 @@ pub use ollama::OllamaProvider;
 pub use openai::OpenAIProvider;
 pub use router::CostAwareRouter;
 
-use std::sync::Arc;
 use continuum_core::caps::Cap;
 use continuum_core::model::ModelProvider;
+use std::sync::Arc;
 
 /// Dynamically instantiate the model provider based on provider ID, API key, and base URL.
 pub fn load_provider(
@@ -63,7 +63,12 @@ pub fn load_provider(
                 .map(|p| p.api_base_url.to_string())
                 .unwrap_or_else(|| "https://openrouter.ai/api/v1".to_string());
             let base_url = base_url_override.unwrap_or(default_base_url);
-            Arc::new(CompatProvider::new(provider_id, api_key, base_url, _secrets))
+            Arc::new(CompatProvider::new(
+                provider_id,
+                api_key,
+                base_url,
+                _secrets,
+            ))
         }
     }
 }
@@ -105,4 +110,3 @@ pub fn load_from_config(
     let base_url = config.base_url(provider_id);
     Some(load_provider(provider_id, api_key, base_url))
 }
-

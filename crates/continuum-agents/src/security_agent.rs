@@ -268,7 +268,10 @@ fn run_trivy_in(workspace: &std::path::Path) -> Vec<Finding> {
 }
 
 fn run_gitleaks_in(workspace: &std::path::Path) -> Vec<Finding> {
-    let output = run_command_in(&["gitleaks", "detect", "--no-color", "--no-git", "-v", "."], workspace);
+    let output = run_command_in(
+        &["gitleaks", "detect", "--no-color", "--no-git", "-v", "."],
+        workspace,
+    );
     let mut findings = Vec::new();
     if let Some(out) = output {
         for line in out.lines() {
@@ -310,10 +313,7 @@ fn generate_patch(finding: &Finding) -> String {
 /// Apply remediation patches. In the current phase, patches are generated
 /// as file-based remediations. Full sandbox-based application will be
 /// wired with the execution engine when a session context is available.
-async fn apply_patches_via_sandbox(
-    patches: &[serde_json::Value],
-    ctx: &AgentContext,
-) -> usize {
+async fn apply_patches_via_sandbox(patches: &[serde_json::Value], ctx: &AgentContext) -> usize {
     let mut applied = 0usize;
     for patch in patches {
         let patch_str = patch["patch"].as_str().unwrap_or("");
@@ -322,7 +322,7 @@ async fn apply_patches_via_sandbox(
         }
         ctx.task_progress(
             AgentKind::Security,
-            &format!("patch generated: {:.60}", patch_str),
+            format!("patch generated: {:.60}", patch_str),
             Some(80),
         );
         applied += 1;

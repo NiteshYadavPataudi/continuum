@@ -62,16 +62,18 @@ pub fn render(frame: &mut Frame, app: &TuiApp) {
     if app.active_panel == ActivePanel::CommandPalette {
         render_command_palette(frame, app);
     }
+
+    // Render model error tooltip when there's an error
+    if app.model_error.is_some() && app.status == AppStatus::Ready {
+        render_model_error_tooltip(frame, app);
+    }
 }
 
-/// Render the top header bar.
+/// Render the top header bar with live telemetry.
 fn render_header(frame: &mut Frame, app: &TuiApp, area: Rect) {
     let theme = &app.theme;
 
-    // Get git branch
     let git_branch = get_git_branch();
-
-    // Build header content
     let mode = match app.active_panel {
         ActivePanel::Composer => "Ask",
         ActivePanel::Timeline => "Ask",
@@ -81,9 +83,46 @@ fn render_header(frame: &mut Frame, app: &TuiApp, area: Rect) {
         ActivePanel::ApprovalPrompt => "Approval",
     };
 
-    let token_info = format!("{} tokens", app.agent_activity.tokens_used);
+    // Live token & cost info
+    let token_info = format!("{}t", app.agent_activity.tokens_used);
+    let cost_str = if app.total_cost_usd > 0.0 {
+        format!("${:.4}", app.total_cost_usd)
+    } else {
+        String::new()
+    };
 
-    let header_line = Line::from(vec![
+    // Model status with error indicator
+    let model_style = if app.model_error.is_some() {
+        Style::default()
+            .fg(theme.error)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme.accent)
+    };
+    let model_display = if app.model_error.is_some() {
+        format!("⚠ {}", app.session.model)
+    } else {
+        app.session.model.clone()
+    };
+
+    // Provider status
+    let provider_label = if app.provider_configured {
+        "connected"
+    } else {
+        "no-key"
+    };
+
+    // Validation summary
+    let val_str = if app.validation_total > 0 {
+        format!(
+            " v{}/{}({})",
+            app.validation_passed, app.validation_total, app.validation_failed
+        )
+    } else {
+        String::new()
+    };
+
+    let mut spans = vec![
         Span::styled(
             " Continuum ",
             Style::default()
@@ -92,16 +131,44 @@ fn render_header(frame: &mut Frame, app: &TuiApp, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
-        Span::styled(&app.session.model, Style::default().fg(theme.accent)),
+        Span::styled(&model_display, model_style),
+        Span::raw("  "),
+        Span::styled(
+            provider_label,
+            Style::default().fg(if app.provider_configured {
+                theme.success
+            } else {
+                theme.warning
+            }),
+        ),
         Span::raw("  |  "),
         Span::styled(get_project_name(), Style::default().fg(theme.muted)),
         Span::raw("  |  "),
         Span::styled(&git_branch, Style::default().fg(theme.warning)),
         Span::raw("  |  "),
         Span::styled(mode, Style::default().fg(theme.info)),
-        Span::raw("  |  "),
-        Span::styled(&token_info, Style::default().fg(theme.muted)),
-    ]);
+    ];
+
+    if !cost_str.is_empty() {
+        spans.push(Span::raw("  |  "));
+        spans.push(Span::styled(&cost_str, Style::default().fg(theme.success)));
+    }
+
+    spans.push(Span::raw("  |  "));
+    spans.push(Span::styled(&token_info, Style::default().fg(theme.muted)));
+
+    if !val_str.is_empty() {
+        spans.push(Span::styled(&val_str, Style::default().fg(theme.info)));
+    }
+
+    // Show model error tooltip
+    if let Some(ref err) = app.model_error {
+        let err_display = format!("ERR: {}", crate::output::truncate_str(err, 30));
+        spans.push(Span::raw("  "));
+        spans.push(Span::styled(err_display, Style::default().fg(theme.error)));
+    }
+
+    let header_line = Line::from(spans);
 
     let header = Paragraph::new(header_line)
         .style(theme.header_style())
@@ -233,17 +300,36 @@ fn render_timeline(frame: &mut Frame, app: &TuiApp, area: Rect) {
         for task in &app.agent_activity.tasks {
             let icon = task.status.icon();
             let style = task.status.style(theme);
+            let pct = task.percent.map(|p| format!(" {p}%")).unwrap_or_default();
+            let label_len = 40usize.saturating_sub(pct.len());
             lines.push(Line::from(vec![
                 Span::styled(format!("  {icon} "), style),
-                Span::styled(&task.label, Style::default().fg(theme.fg)),
+                Span::styled(
+                    crate::output::truncate_str(&task.label, label_len),
+                    Style::default().fg(theme.fg),
+                ),
+                Span::styled(pct, Style::default().fg(theme.info)),
             ]));
+
+            // Show dependency info for blocked tasks
+            if task.status == TaskStatus::Pending && !task.depends_on.is_empty() {
+                lines.push(Line::from(vec![Span::styled(
+                    format!("    waits for: {}", task.depends_on.len()),
+                    Style::default().fg(theme.muted),
+                )]));
+            }
 
             for child in &task.children {
                 let child_icon = child.status.icon();
                 let child_style = child.status.style(theme);
+                let child_pct = child.percent.map(|p| format!(" {p}%")).unwrap_or_default();
                 lines.push(Line::from(vec![
                     Span::styled(format!("    {child_icon} "), child_style),
-                    Span::styled(&child.label, Style::default().fg(theme.fg)),
+                    Span::styled(
+                        crate::output::truncate_str(&child.label, 36),
+                        Style::default().fg(theme.fg),
+                    ),
+                    Span::styled(child_pct, Style::default().fg(theme.info)),
                 ]));
             }
         }
@@ -283,13 +369,13 @@ fn render_sidebar(frame: &mut Frame, app: &TuiApp, area: Rect) {
     render_recent_files(frame, app, sidebar_layout[2]);
 }
 
-/// Render agent activity summary in sidebar.
+/// Render agent activity summary in sidebar with live telemetry.
 fn render_agent_summary(frame: &mut Frame, app: &TuiApp, area: Rect) {
     let theme = &app.theme;
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Status
+    // Status with icon
     let status_icon = match app.status {
         AppStatus::Ready => "*",
         AppStatus::Thinking => ">",
@@ -297,19 +383,20 @@ fn render_agent_summary(frame: &mut Frame, app: &TuiApp, area: Rect) {
         AppStatus::WaitingApproval => "?",
     };
     let status_style = app.status.style(theme);
-
     lines.push(Line::from(vec![
         Span::styled(format!(" {status_icon} "), status_style),
         Span::styled(app.status.label(), status_style),
     ]));
-
     lines.push(Line::from(vec![Span::raw("")]));
 
     // Current step
     if let Some(step) = &app.agent_activity.current_step {
         lines.push(Line::from(vec![
-            Span::styled("  Current: ", Style::default().fg(theme.muted)),
-            Span::styled(step.as_str(), Style::default().fg(theme.fg)),
+            Span::styled("  Task: ", Style::default().fg(theme.muted)),
+            Span::styled(
+                crate::output::truncate_str(step, 24),
+                Style::default().fg(theme.fg),
+            ),
         ]));
     }
 
@@ -324,14 +411,50 @@ fn render_agent_summary(frame: &mut Frame, app: &TuiApp, area: Rect) {
         ),
     ]));
 
-    // Tokens
+    // Tokens used
+    let token_label = app.agent_activity.tokens_used;
     lines.push(Line::from(vec![
         Span::styled("  Tokens: ", Style::default().fg(theme.muted)),
-        Span::styled(
-            format!("{}", app.agent_activity.tokens_used),
-            Style::default().fg(theme.fg),
-        ),
+        Span::styled(format!("{token_label}"), Style::default().fg(theme.fg)),
     ]));
+
+    // Cost
+    if app.total_cost_usd > 0.0 {
+        lines.push(Line::from(vec![
+            Span::styled("  Cost: ", Style::default().fg(theme.muted)),
+            Span::styled(
+                format!("${:.4}", app.total_cost_usd),
+                Style::default().fg(theme.success),
+            ),
+        ]));
+    }
+
+    // Validation summary
+    if app.validation_total > 0 {
+        let val_color = if app.validation_failed > 0 {
+            theme.error
+        } else {
+            theme.success
+        };
+        lines.push(Line::from(vec![
+            Span::styled("  Valid: ", Style::default().fg(theme.muted)),
+            Span::styled(
+                format!("{}/{}", app.validation_passed, app.validation_total),
+                Style::default().fg(val_color),
+            ),
+        ]));
+    }
+
+    // Model error
+    if let Some(ref err) = app.model_error {
+        lines.push(Line::from(vec![
+            Span::styled("  Model: ", Style::default().fg(theme.muted)),
+            Span::styled(
+                crate::output::truncate_str(err, 22),
+                Style::default().fg(theme.error),
+            ),
+        ]));
+    }
 
     let block = Block::default()
         .title(" Agent ")
@@ -394,20 +517,68 @@ fn render_quick_models(frame: &mut Frame, app: &TuiApp, area: Rect) {
     frame.render_widget(paragraph, area);
 }
 
-/// Render recent files / tasks in sidebar.
+/// Render task list in sidebar with progress and status.
 fn render_recent_files(frame: &mut Frame, app: &TuiApp, area: Rect) {
     let theme = &app.theme;
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Show task tree if available
     if !app.agent_activity.tasks.is_empty() {
+        let running = app
+            .agent_activity
+            .tasks
+            .iter()
+            .filter(|t| t.status == TaskStatus::Running)
+            .count();
+        let completed = app
+            .agent_activity
+            .tasks
+            .iter()
+            .filter(|t| t.status == TaskStatus::Completed)
+            .count();
+        let failed = app
+            .agent_activity
+            .tasks
+            .iter()
+            .filter(|t| t.status == TaskStatus::Failed)
+            .count();
+        let total = app.agent_activity.tasks.len();
+
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!(" {} ready", total - running - completed),
+                Style::default().fg(theme.muted),
+            ),
+            Span::styled(
+                format!(" | {} running", running),
+                Style::default().fg(theme.status_running),
+            ),
+            Span::styled(
+                format!(" | {} done", completed),
+                Style::default().fg(theme.success),
+            ),
+            if failed > 0 {
+                Span::styled(
+                    format!(" | {} failed", failed),
+                    Style::default().fg(theme.error),
+                )
+            } else {
+                Span::raw("")
+            },
+        ]));
+        lines.push(Line::from(vec![Span::raw("")]));
+
         for task in &app.agent_activity.tasks {
             let icon = task.status.icon();
             let style = task.status.style(theme);
+            let pct = task.percent.map(|p| format!(" {p}%")).unwrap_or_default();
             lines.push(Line::from(vec![
                 Span::styled(format!(" {icon} "), style),
-                Span::styled(&task.label, Style::default().fg(theme.fg)),
+                Span::styled(
+                    crate::output::truncate_str(&task.label, 26),
+                    Style::default().fg(theme.fg),
+                ),
+                Span::styled(pct, Style::default().fg(theme.info)),
             ]));
         }
     } else {
@@ -480,13 +651,28 @@ fn render_composer(frame: &mut Frame, app: &TuiApp, area: Rect) {
 
     frame.render_widget(input, composer_layout[0]);
 
-    // Hint row
-    let hints = Line::from(vec![
-        Span::styled(
-            " Tab:sidebar/autocomplete  Enter:send  Esc:cancel  Ctrl+T:tasks  Ctrl+L:clear  Ctrl+A:activity  /:commands",
-            Style::default().fg(theme.muted),
-        ),
-    ]);
+    // Hint row with dynamic model error / status
+    let hint_text = if let Some(ref err) = app.model_error {
+        format!(
+            " ERR: {} | Tab:sidebar  Enter:send  Esc:cancel",
+            crate::output::truncate_str(err, 40)
+        )
+    } else if app.total_cost_usd > 0.0 {
+        format!(
+            " Cost: ${:.4} | {}t used | Tab:sidebar  Enter:send  Esc:cancel  /:commands",
+            app.total_cost_usd, app.agent_activity.tokens_used
+        )
+    } else {
+        " Tab:sidebar/autocomplete  Enter:send  Esc:cancel  Ctrl+T:tasks  Ctrl+L:clear  /:commands"
+            .to_string()
+    };
+    let hint_style = if app.model_error.is_some() {
+        Style::default().fg(theme.error)
+    } else {
+        Style::default().fg(theme.muted)
+    };
+
+    let hints = Line::from(vec![Span::styled(&hint_text, hint_style)]);
 
     let hint_paragraph = Paragraph::new(hints).style(theme.composer_style());
 
@@ -495,6 +681,59 @@ fn render_composer(frame: &mut Frame, app: &TuiApp, area: Rect) {
     if show_slash_suggestions {
         render_slash_suggestions(frame, app, composer_layout[2]);
     }
+}
+
+/// Render the model error tooltip.
+fn render_model_error_tooltip(frame: &mut Frame, app: &TuiApp) {
+    let area = frame.area();
+    let theme = &app.theme;
+    let err_text = app.model_error.as_deref().unwrap_or("unknown error");
+
+    let lines = vec![
+        Line::from(vec![Span::styled(
+            "  Model Error ",
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(vec![Span::raw("")]),
+        Line::from(vec![Span::styled(err_text, Style::default().fg(theme.fg))]),
+        Line::from(vec![Span::raw("")]),
+        Line::from(vec![Span::styled(
+            "  Tips:",
+            Style::default().fg(theme.warning),
+        )]),
+        Line::from(vec![Span::styled(
+            "    • Set API key via: continuum login",
+            Style::default().fg(theme.muted),
+        )]),
+        Line::from(vec![Span::styled(
+            "    • Check provider: /model or /providers",
+            Style::default().fg(theme.muted),
+        )]),
+        Line::from(vec![Span::styled(
+            "    • Run diagnostics: continuum doctor",
+            Style::default().fg(theme.muted),
+        )]),
+        Line::from(vec![Span::raw("")]),
+        Line::from(vec![Span::styled(
+            "  Press any key to dismiss",
+            Style::default().fg(theme.accent_dim),
+        )]),
+    ];
+
+    let popup = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" API / Model Error ")
+                .borders(Borders::ALL)
+                .border_style(theme.error_style()),
+        )
+        .style(Style::default().bg(Color::Rgb(20, 20, 30)));
+
+    let popup_area = centered_rect(55, 40, area);
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(popup, popup_area);
 }
 
 /// Render the help overlay.

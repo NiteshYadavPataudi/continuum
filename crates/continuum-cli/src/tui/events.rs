@@ -1,8 +1,8 @@
 //! Event handling for the TUI.
 
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use continuum_core::planner::Planner;
 use continuum_core::repo::RepoLoader;
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use super::app::*;
 

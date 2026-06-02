@@ -1,7 +1,5 @@
-use continuum_core::memory::MemoryStore;
-use std::sync::Arc;
-
 use super::{CmdResult, MemoryArgs};
+use continuum_core::memory::MemoryStore;
 
 pub async fn run(args: MemoryArgs) -> CmdResult {
     let root = std::env::current_dir().unwrap_or_default();
@@ -11,15 +9,11 @@ pub async fn run(args: MemoryArgs) -> CmdResult {
         .await
         .map_err(|e| format!("failed to open storage: {e}"))?;
 
-    let memory_repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
-    let vector = continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
-
-    let memory: Arc<dyn MemoryStore> =
-        Arc::new(continuum_memory::LayeredMemory::new(memory_repo, vector));
+    let pool = storage.pool().clone();
 
     match args.action.as_str() {
         "list" => {
-            let repo = continuum_storage::MemoryRepo::new(storage.pool().clone());
+            let repo = continuum_storage::MemoryRepo::new(pool);
             let items = repo
                 .list_by_run("session-0")
                 .await
@@ -39,6 +33,11 @@ pub async fn run(args: MemoryArgs) -> CmdResult {
             }
         }
         "compress" => {
+            let memory_repo = continuum_storage::MemoryRepo::new(pool);
+            let vector =
+                continuum_storage::VectorBackend::Memory(continuum_storage::MemoryIndex::new());
+            let memory =
+                std::sync::Arc::new(continuum_memory::LayeredMemory::new(memory_repo, vector));
             let report = memory
                 .compress(continuum_core::memory::CompressionScope::AllHot)
                 .await
@@ -49,7 +48,12 @@ pub async fn run(args: MemoryArgs) -> CmdResult {
             );
         }
         "purge" => {
-            println!("Purge not yet implemented. Use `continuum memory list` then clear manually.");
+            let repo = continuum_storage::MemoryRepo::new(pool);
+            let count = repo
+                .delete_by_run("session-0")
+                .await
+                .map_err(|e| format!("failed to purge memory: {e}"))?;
+            println!("Purged {} memory item(s).", count);
         }
         other => {
             println!("Unknown memory action: {other}");

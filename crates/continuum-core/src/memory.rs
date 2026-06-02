@@ -229,7 +229,11 @@ pub struct VectorHit {
 impl VectorHit {
     /// Create a new vector hit.
     pub fn new(id: String, score: f32, metadata: serde_json::Value) -> Self {
-        Self { id, score, metadata }
+        Self {
+            id,
+            score,
+            metadata,
+        }
     }
 }
 

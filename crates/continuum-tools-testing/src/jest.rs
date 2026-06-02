@@ -7,6 +7,7 @@ use continuum_core::sandbox::{ExecEvent, ExecRequest, SandboxHandle};
 use continuum_core::tool::{ToolError, ToolFamily, ToolInvocation, ToolReport, ToolRunner};
 use continuum_core::validator::Finding;
 
+/// ToolRunner for Jest (JS/TS unit tests).
 #[derive(Debug)]
 pub struct JestRunner;
 

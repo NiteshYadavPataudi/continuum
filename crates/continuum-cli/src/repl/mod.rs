@@ -99,7 +99,7 @@ impl ReplSession {
 }
 
 /// Detect the default provider from env vars or config.
-fn detect_default_provider(config: &Config) -> (String, String) {
+pub fn detect_default_provider(config: &Config) -> (String, String) {
     // Check common env vars in order of preference
     let env_checks = [
         (

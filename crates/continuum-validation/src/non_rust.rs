@@ -8,6 +8,7 @@ use continuum_core::validator::{
     ValidationTarget, Validator,
 };
 
+/// Macro to generate a validator for a non-Rust language tool.
 macro_rules! lang_validator {
     ($name:ident, $stage:expr, $required:expr, $check_cmd:expr, $ext:expr) => {
         #[derive(Debug)]
@@ -76,6 +77,7 @@ macro_rules! lang_validator {
     };
 }
 
+// Biome validator: JS/TS linting. Skipped when no `.ts` files are present.
 lang_validator!(
     BiomeValidator,
     ValidationStage::Lint,
@@ -83,6 +85,7 @@ lang_validator!(
     vec!["npx".into(), "biome".into(), "check".into(), ".".into()],
     "ts"
 );
+// Vitest validator: JS/TS unit tests. Skipped when no `.ts` files are present.
 lang_validator!(
     VitestValidator,
     ValidationStage::UnitTest,
@@ -90,6 +93,7 @@ lang_validator!(
     vec!["npx".into(), "vitest".into(), "run".into()],
     "ts"
 );
+// Pytest validator: Python tests. Skipped when no `.py` files are present.
 lang_validator!(
     PytestValidator,
     ValidationStage::UnitTest,

@@ -4,171 +4,56 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0%20%7C%20MIT-blue" alt="License"/>
   <img src="https://img.shields.io/badge/crates-24-8A2BE2" alt="24 crates"/>
   <img src="https://img.shields.io/badge/providers-10-green" alt="10 providers"/>
+  <img src="https://img.shields.io/badge/tests-67-passing-brightgreen" alt="67 tests"/>
 </p>
 
 <h1 align="center">Continuum</h1>
 
 <p align="center">
-  <strong>Open-source autonomous production engineering runtime — written in Rust.</strong><br>
-  Plans, implements, validates, secures, and recovers software at production scale.
+  <strong>Autonomous production engineering runtime — written in Rust.</strong><br>
+  A natural-language goal → production-ready, security-hardened, test-passing result.
 </p>
 
 ---
 
-## What is Continuum?
+## Overview
 
-Continuum is not a code autocomplete tool. It is a **full-stack autonomous engineering runtime** that takes a natural-language goal and drives it all the way to a production-ready, security-hardened, test-passing result — without human intervention at every step.
+Continuum is a **multi-agent autonomous engineering runtime** that takes a natural-language goal and drives it through planning, implementation, validation, security hardening, and recovery — without step-by-step human guidance.
 
-```
+```sh
 continuum execute --goal "Add rate-limiting middleware to the API"
 ```
 
-That single command triggers:
-1. **Repository analysis** — tree-sitter symbol graph of your codebase
-2. **LLM planning** — goal decomposed into an execution DAG by agent kind
-3. **Architecture review** — design validated against your `ARCHITECTURE.md`
-4. **Code generation** — CodingAgent implements the change
-5. **Test generation** — TestingAgent writes tests
-6. **10-stage validation** — compile → lint → typecheck → unit → integration → e2e → security scan → startup → performance → regression
-7. **Security hardening** — semgrep + trivy + gitleaks scans (3 modes)
-8. **Code review** — ReviewAgent checks the diff
-9. **Memory compression** — session context archived from hot → warm → cold tiers
-10. **Checkpoint** — state saved at every step so you can `resume` after any failure
+This triggers:
+1. **Repository analysis** via tree-sitter symbol graphs
+2. **LLM-driven planning** decomposing the goal into an execution DAG
+3. **Architecture review** against your `ARCHITECTURE.md`
+4. **Code generation** via the CodingAgent
+5. **Test generation** via the TestingAgent
+6. **10-stage validation** (compile → lint → typecheck → unit → integration → e2e → security → startup → performance → regression)
+7. **Security hardening** with semgrep + trivy + gitleaks
+8. **Code review** of the produced diff
+9. **Memory compression** (hot → warm → cold tiers)
+10. **Checkpoint** at every step — `resume` from any failure
 
 ---
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│  continuum CLI  (clap + ratatui live dashboard)       │
-│  init · analyze · execute · config · harden · doctor  │
-│  --tui · --continue · --resume · --model · --print   │
-└────────────────────────┬──────────────────────────────┘
-                         │
-┌────────────────────────▼──────────────────────────────┐
-│              Scheduler  (DAG walk + JoinSet)            │
-│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐     │
-│  │ Planner  │ │ Coding │ │Testing │ │ Security │     │
-│  │  Agent   │ │ Agent  │ │ Agent  │ │  Agent   │     │
-│  └──────────┘ └────────┘ └────────┘ └──────────┘     │
-│  ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐     │
-│  │  Arch    │ │ Review │ │ Memory │ │ Recovery │     │
-│  │  Agent   │ │ Agent  │ │ Agent  │ │  Agent   │     │
-│  └──────────┘ └────────┘ └────────┘ └──────────┘     │
-└────────────────────────┬──────────────────────────────┘
-                         │
-┌────────────────────────▼──────────────────────────────┐
-│  Validation Pipeline  (10 stages, multi-language)      │
-│  Compile→Lint→TypeCheck→Unit→Integration→              │
-│  E2E→SecurityScan→Startup→Perf→Regression              │
-│  Rust (cargo) · TypeScript (biome/vitest) · Python     │
-└────────────────────────┬──────────────────────────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-┌─────────▼───┐  ┌───────▼──────┐  ┌───▼──────────┐
-│  Repo       │  │  Memory      │  │  Recovery    │
-│Intelligence │  │  Hot/Warm/   │  │  Checkpoint  │
-│(tree-sitter │  │  Cold tiers  │  │  Replay      │
-│  4 langs)   │  │  (SQLite +   │  │  Heartbeat   │
-│ Impact      │  │   vectors)   │  │  Audit log   │
-│ Analysis    │  │              │  │              │
-└─────────────┘  └──────────────┘  └───▲──────────┘
-          │                             │
-┌─────────▼─────────────────────────────┴──────────┐
-│  Model Providers  (10 providers, 40+ models)      │
-│  Anthropic · OpenAI · Gemini · Groq · DeepSeek   │
-│  Mistral · Cohere · Together · Fireworks · Ollama │
-│  CompatProvider for any OpenAI-compatible API     │
-└───────────────────────────────────────────────────┘
-```
-
----
-
-## Features at a glance
+## Features
 
 | Capability | Details |
 |---|---|
-| **Multi-agent orchestration** | 8 specialized agents coordinated by a DAG scheduler with concurrency limits |
-| **10-stage validation** | Every change must pass compile → regression; supports Rust, TypeScript, Python |
-| **3-tier memory** | Hot (full context) → Warm (LLM summaries) → Cold (semantic search via SQLite-vec/Qdrant) |
-| **Crash recovery** | Checkpoint after every plan node; `resume` from any failure |
-| **Repo intelligence** | Tree-sitter symbol graphs for Rust, TypeScript, Python, Go with transitive impact analysis |
-| **Security hardening** | 3 modes (audit / hardening / enterprise) with automated remediation and SOC2 compliance |
-| **10 model providers** | Anthropic, OpenAI, Gemini, Groq, DeepSeek, Mistral, Cohere, Together, Fireworks, Ollama |
-| **Docker sandbox** | All tool execution runs inside an isolated container; auto-detects Cargo/npm/pip projects |
-| **Live TUI dashboard** | 4-pane ratatui dashboard (plan DAG · validation status · agent log · cost tracker) |
-| **OpenTelemetry + Prometheus** | OTLP export, Grafana dashboards (memory, validation, cost, run overview) |
-| **Multi-language validation** | Biome + Vitest for TypeScript, pytest for Python; auto-detected per project |
-| **REPL + TUI + CLI** | Three interaction modes: interactive REPL, full-screen TUI, and traditional subcommands |
-
----
-
-## Prerequisites
-
-| Dependency | Version | Purpose |
-|---|---|---|
-| [Rust](https://rustup.rs) | 1.78+ | Build the workspace |
-| [Docker](https://www.docker.com) | 24+ | Sandbox execution |
-| Node.js | 18+ | TypeScript / JavaScript validation |
-| Python | 3.9+ | Python validation |
-| [Semgrep](https://semgrep.dev) | latest | Static security analysis |
-| [Trivy](https://aquasecurity.github.io/trivy) | latest | Vulnerability scanning |
-| [Gitleaks](https://gitleaks.io) | latest | Secret detection |
-
-Grafana and Prometheus are optional (for the dashboards).
-
----
-
-## Installation
-
-### One-line installer
-
-**Windows**
-
-```powershell
-irm https://raw.githubusercontent.com/NiteshYadavPataudi/continuum/main/install.ps1 | iex
-```
-
-**macOS / Linux**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/NiteshYadavPataudi/continuum/main/install.sh | bash
-```
-
-The installer will:
-
-- build and install `continuum-cli`
-- place the binary in a dedicated install root
-- update your PATH for the current shell
-- persist PATH changes in your user shell profile
-
-### Environment variables
-
-- `CONTINUUM_VERSION`: install a specific version instead of `latest`
-- `CONTINUUM_INSTALL_DIR`: choose the install root used by the installer
-- `INSTALL_DIR`: fallback install root variable supported by both scripts
-
-Default install root:
-
-- Windows: `%USERPROFILE%\.local\continuum`
-- macOS/Linux: `~/.local/continuum`
-
-### Build from source
-
-```sh
-git clone https://github.com/NiteshYadavPataudi/continuum.git
-cd continuum
-cargo build --release
-./target/release/continuum doctor   # verify environment
-```
-
-### From crates.io *(once published)*
-
-```sh
-cargo install continuum-cli
-```
+| **8 specialized agents** | Planner, Architecture, Coding, Testing, Security, Review, Memory, Recovery — coordinated by a DAG scheduler |
+| **10-stage validation pipeline** | Compile → Lint → TypeCheck → Unit → Integration → E2E → SecurityScan → Startup → Performance → Regression |
+| **Rust + TypeScript + Python** | Language-aware validation with Biome, Vitest, pytest, cargo |
+| **10 LLM providers** | Anthropic, OpenAI, Gemini, Groq, DeepSeek, Mistral, Cohere, Together, Fireworks, Ollama |
+| **40+ models** | Vendored model registry, build-time codegen, zero-overhead lookups |
+| **3-tier memory engine** | Hot (SQLite) → Warm (LLM summaries) → Cold (vector embeddings) |
+| **Crash recovery** | Checkpoint after every plan node; resume, replay, and rollback |
+| **Security hardening** | 3 modes: audit / hardening / enterprise with compliance attestation |
+| **Docker sandbox** | All tool execution inside isolated containers |
+| **Live TUI dashboard** | 4-pane ratatui interface with real-time cost, token, and validation tracking |
+| **OpenTelemetry + Prometheus** | OTLP export, 4 Grafana dashboards |
+| **CLI + REPL + TUI** | Three interaction modes with full slash-command support |
 
 ---
 
@@ -178,415 +63,347 @@ cargo install continuum-cli
 # 1. Configure your API key
 continuum config set anthropic.api_key sk-ant-...
 
-# 2. Scaffold engineering docs (VISION.md, ARCHITECTURE.md, etc.)
+# 2. Scaffold engineering docs
 continuum init
 
-# 3. Analyze the repository
-continuum analyze
+# 3. Verify your environment
+continuum doctor
 
-# 4. Run an autonomous session
+# 4. Launch interactive REPL
+continuum
+
+# 5. Or execute a goal directly
 continuum execute --goal "Add a /health endpoint with uptime and version"
 
-# 5. If it gets interrupted — resume from the last checkpoint
+# 6. Resume from failures
 continuum resume
 
-# 6. Run a security audit
+# 7. Run a security audit
 continuum harden --mode audit
 
-# 7. Launch the live TUI dashboard
+# 8. Launch full-screen TUI
 continuum --tui
 ```
 
 ---
 
+## Installation
+
+### Prerequisites
+
+| Dependency | Version | Purpose |
+|---|---|---|
+| [Rust](https://rustup.rs) | 1.78+ | Build the workspace |
+| [Docker](https://docker.com) | 24+ | Sandbox execution (required) |
+| Node.js | 18+ | TypeScript validation |
+| Python | 3.9+ | Python validation |
+| [Semgrep](https://semgrep.dev) | latest | Static security analysis |
+| [Trivy](https://aquasecurity.github.io/trivy) | latest | Vulnerability scanning |
+| [Gitleaks](https://gitleaks.io) | latest | Secret detection |
+
+### Build from source
+
+```sh
+git clone https://github.com/continuum-rs/continuum.git
+cd continuum
+cargo build --release
+./target/release/continuum doctor
+```
+
+### Installer
+
+**Windows**
+```powershell
+irm https://raw.githubusercontent.com/continuum-rs/continuum/main/install.ps1 | iex
+```
+
+**macOS / Linux**
+```sh
+curl -fsSL https://raw.githubusercontent.com/continuum-rs/continuum/main/install.sh | bash
+```
+
+### Environment variables
+
+- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, etc. — provider-specific keys
+- `CONTINUUM_<PROVIDER>_API_KEY` — generic override for any provider
+- `CONTINUUM_OTLP_ENDPOINT` — enable OpenTelemetry export
+- `CONTINUUM_METRICS_ADDR` — Prometheus metrics address (default `127.0.0.1:9477`)
+
+---
+
 ## CLI Usage
 
-Continuum supports three execution modes:
+### Modes
 
 | Mode | Example | Description |
 |---|---|---|
 | **Subcommand** | `continuum execute --goal "..."` | Traditional CLI subcommands |
-| **Direct goal** | `continuum "add rate limiting"` | Execute goal directly without subcommand |
-| **REPL** | `continuum` | Interactive shell with history and context |
+| **Direct goal** | `continuum "add rate limiting"` | Execute without subcommand |
+| **REPL** | `continuum` | Interactive shell with history |
 | **TUI** | `continuum --tui` | Full-screen terminal dashboard |
-
-### Global options
-
-| Flag | Description |
-|---|---|
-| `--project <path>` | Path to project directory (defaults to cwd) |
-| `-v` / `--verbose` | Enable verbose logging |
-| `-p` / `--print` | Print result as JSON and exit (non-interactive) |
-| `--tui` | Launch full-screen TUI dashboard |
-| `-c` / `--continue` | Continue the most recent session |
-| `-r` / `--resume <id>` | Resume a specific session by ID |
-| `--model <name>` | Override the model for this session |
 
 ### Commands
 
 | Command | Description |
 |---|---|
-| `continuum init` | Scaffold the eight engineering docs into the project |
-| `continuum analyze` | Analyze the repository and produce an architecture report |
-| `continuum execute --goal "..."` | Run an autonomous engineering session |
-| `continuum resume` | Resume the most recent interrupted session |
-| `continuum harden --mode <mode>` | Security hardening pass (`audit` · `hardening` · `enterprise`) |
-| `continuum rollback <session> --to <checkpoint>` | Roll back state to a specific checkpoint |
-| `continuum replay <session>` | Replay a past session for debugging |
-| `continuum doctor` | Diagnose the local environment |
-| `continuum benchmark` | Run validation benchmarks against fixture projects |
-| `continuum memory` | Inspect or compact the memory engine |
-| `continuum install` | Install optional tool dependencies (semgrep, trivy, gitleaks) |
-| `continuum config` | Read and write provider API keys and settings |
+| `init` | Scaffold engineering docs (8 files) |
+| `analyze` | Analyze repository, produce architecture report |
+| `execute --goal "..."` | Run autonomous execution session |
+| `resume` | Resume most recent interrupted session |
+| `harden --mode <mode>` | Security hardening (audit/hardening/enterprise) |
+| `doctor` | Full environment diagnostics (tools, API keys, storage, vectors) |
+| `doctor --fix` | Show setup guidance for missing dependencies |
+| `doctor --check-stuck` | Detect stuck sessions (retry > 5) |
+| `memory <list\|compress\|purge>` | Manage memory engine |
+| `config set\|get\|unset\|list\|providers` | Manage provider configuration |
+| `login` | Interactive provider setup |
+| `install` | Install optional dependencies |
+| `benchmark` | Run validation benchmarks |
+| `replay <session>` | Replay past session |
+| `rollback <session> --to <id>` | Roll back to checkpoint |
 
-### `continuum config` — provider configuration
+### Global options
+
+| Flag | Description |
+|---|---|
+| `--project <path>` | Target project directory |
+| `-v` / `--verbose` | Enable verbose logging |
+| `--tui` | Launch full-screen TUI dashboard |
+| `-c` / `--continue` | Continue most recent session |
+| `-r` / `--resume <id>` | Resume specific session |
+| `--model <name>` | Override model for session |
+| `--dry-run` | Build plan and show contract without executing |
+| `--yes` | Auto-approve execution contract |
+
+---
+
+## TUI Dashboard
 
 ```sh
-# Set an API key
-continuum config set anthropic.api_key  sk-ant-...
-continuum config set openai.api_key     sk-...
-continuum config set gemini.api_key     AIza...
-continuum config set groq.api_key       gsk_...
-continuum config set deepseek.api_key   sk-...
-
-# Override the base URL (proxies, local deployments)
-continuum config set openai.base_url    https://my-proxy.example.com/v1
-
-# Read a value (API keys are masked)
-continuum config get anthropic.api_key
-
-# Show everything that's configured
-continuum config list
-
-# List all 10 providers with status and model count
-continuum config providers
-
-# Remove a value
-continuum config unset openai.base_url
+continuum --tui
+continuum execute --goal "..." --follow-tui
 ```
 
-Config is stored at `~/.continuum/config.toml`.  
-Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY`, `CONTINUUM_<PROVIDER>_API_KEY`) take precedence over the config file.
+The live TUI provides real-time visibility into execution:
+
+| Area | Shows |
+|---|---|
+| **Header bar** | Model name, provider status (`connected`/`no-key`), project, git branch, cost, token count, validation summary, model errors |
+| **Timeline** | Scrollable conversation with user/assistant/system/tool messages |
+| **Agent sidebar** | Status, current task, elapsed time, tokens used, live cost, validation pass/fail, model errors |
+| **Tasks sidebar** | Task count (ready/running/done/failed), per-task progress with percentages, dependency info |
+| **Composer** | Multi-line input, slash-command autocomplete, live cost hint bar, model error display |
+| **Model selector** | Searchable model list with pricing; `/model` to switch |
+| **Model error popup** | Dismissable overlay with troubleshooting tips when API calls fail |
+
+### Key bindings
+
+| Key | Action |
+|---|---|
+| `Enter` | Send message |
+| `Shift+Enter` | Newline (multiline mode) |
+| `Tab` | Cycle panels / autocomplete |
+| `Escape` | Close panel / cancel |
+| `Ctrl+C` / `Ctrl+D` | Exit TUI |
+| `Ctrl+T` | Focus tasks panel |
+| `Ctrl+L` | Clear conversation |
+| `Ctrl+A` | Agent activity panel |
+| `Ctrl+X` | Stop current agent |
+| `Ctrl+R` | Retry step |
+| `/help` | Show all commands |
+
+### Slash commands
+
+| Command | Description |
+|---|---|
+| `/model` | Switch model |
+| `/providers` | List providers with status |
+| `/effort <level>` | Set reasoning effort |
+| `/cost` | Session token/cost stats |
+| `/doctor` | Run diagnostics |
+| `/init` | Scaffold engineering docs |
+| `/memory` | Inspect memory engine |
+| `/harden` | Security audit |
+| `/diff` | Show uncommitted changes |
+| `/clear` | Clear screen |
+| `/exit` | Exit Continuum |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  continuum CLI (clap + ratatui TUI + REPL)               │
+│  init · analyze · execute · doctor · harden · config     │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│              Scheduler (DAG walk + JoinSet)               │
+│  Planner │ Coding │ Testing │ Security │ Arch │ Review   │
+│  Memory  │ Recovery Agent                                │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│  10-stage Validation Pipeline (Rust/TS/Python)            │
+│  Compile→Lint→TypeCheck→Unit→Integration→E2E→            │
+│  SecurityScan→Startup→Performance→Regression              │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+┌──────────────▼──┐ ┌─────▼─────┐ ┌──▼──────────────┐
+│  Repo           │ │  Memory   │ │  Recovery        │
+│  Intelligence   │ │  Hot/Warm │ │  Checkpoint      │
+│  (tree-sitter)  │ │  /Cold    │ │  Replay/Resume   │
+│  4 langs        │ │  SQLite+  │ │  Heartbeat       │
+│  Impact analysis│ │  Vectors  │ │  Audit log       │
+└────────────────┘ └───────────┘ └─────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────┐
+│  Model Providers (10 providers, 40+ models)               │
+│  Anthropic · OpenAI · Gemini · Groq · DeepSeek · Mistral │
+│  Cohere · Together · Fireworks · Ollama                  │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Model Providers
 
-Continuum ships with 10 providers and 40+ models, all loaded at build time from [models.dev](https://models.dev).
+| Provider | Env var | Notable models |
+|---|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` | Claude Sonnet 4/4.5, Haiku 4/4.5, Opus 4.5 |
+| OpenAI | `OPENAI_API_KEY` | GPT-4o, GPT-4o Mini, o1, o3-mini |
+| Google | `GEMINI_API_KEY` | Gemini 2.5 Pro/Flash, 1.5 Pro/Flash |
+| Groq | `GROQ_API_KEY` | Llama 3.3 70B, Mixtral, Gemma2 |
+| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek V3, R1 |
+| Mistral | `MISTRAL_API_KEY` | Large, Small, Codestral |
+| Cohere | `COHERE_API_KEY` | Command R+, Command R |
+| Together | `TOGETHER_API_KEY` | Llama 3.1, Qwen 2.5, Mixtral |
+| Fireworks | `FIREWORKS_API_KEY` | Llama 3.3, DeepSeek R1 |
+| Ollama | *(none)* | llama3.2, qwen2.5, codellama |
 
-| Provider | ID | Env var | Models |
-|---|---|---|---|
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` | Opus 4.5, Sonnet 4/4.5, Haiku 4/4.5 |
-| OpenAI | `openai` | `OPENAI_API_KEY` | GPT-4o, GPT-4o Mini, o1, o3-mini, GPT-4 Turbo |
-| Google | `google` | `GEMINI_API_KEY` | Gemini 2.5 Pro/Flash, 1.5 Pro/Flash |
-| Groq | `groq` | `GROQ_API_KEY` | Llama 3.3 70B, Llama 3.1 8B, Mixtral, Gemma2 |
-| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | DeepSeek V3, R1 |
-| Mistral AI | `mistral` | `MISTRAL_API_KEY` | Large, Small, Codestral, NeMo |
-| Cohere | `cohere` | `COHERE_API_KEY` | Command R+, Command R |
-| Together AI | `together` | `TOGETHER_API_KEY` | Llama 3.1 70B Turbo, Qwen 2.5, Mixtral 8x22B |
-| Fireworks AI | `fireworks` | `FIREWORKS_API_KEY` | Llama 3.3 70B, DeepSeek R1, Qwen 2.5 |
-| Ollama | `ollama` | *(no key)* | llama3.2, qwen2.5, codellama, mistral, phi4 |
-
-Update models at any time:
-
-```sh
-cargo xtask refresh-models   # fetches https://models.dev/api.json
-```
-
-### Adding a new provider
-
-Any OpenAI-compatible API can be used with `CompatProvider`:
-
-```rust
-use continuum_models::CompatProvider;
-use continuum_core::caps::Cap;
-
-let provider = CompatProvider::new(
-    "my-provider",
-    api_key,
-    "https://api.my-provider.com/v1",
-    Cap::grant(),
-);
-```
+Any OpenAI-compatible API works via `CompatProvider`.
 
 ---
 
 ## Agent System
 
-Eight specialized agents, each implementing the `Agent` trait:
-
-| Agent | Role | Sandbox | Parallelizable |
-|---|---|---|---|
-| `PlannerAgent` | Decomposes goals into an execution DAG via LLM | No | No |
-| `ArchitectureAgent` | Reviews diffs for SOLID violations and layer coupling | No | Yes |
-| `CodingAgent` | Streams code from the model provider | No | No |
-| `TestingAgent` | Generates idiomatic tests for produced code | Yes | No |
-| `SecurityAgent` | Runs semgrep / trivy / gitleaks / ZAP, produces audit reports | Yes | Yes |
-| `ReviewAgent` | Code review — correctness, style, performance, security | No | Yes |
-| `MemoryAgent` | Compresses hot memory items into warm summaries | No | No |
-| `RecoveryAgent` | Decides retry / skip / replan when a task gets stuck | No | No |
-
-```rust
-#[async_trait]
-pub trait Agent: Send + Sync {
-    fn id(&self) -> AgentId;
-    fn kind(&self) -> AgentKind;
-    fn capabilities(&self) -> AgentCapabilities;
-    async fn handle(
-        &self,
-        task: AgentTask,
-        ctx: &AgentContext,
-        cancel: CancellationToken,
-    ) -> Result<AgentOutcome, AgentError>;
-}
-```
+| Agent | Role | Sandbox |
+|---|---|---|
+| `PlannerAgent` | Decompose goals into execution DAG | No |
+| `ArchitectureAgent` | Validate design constraints | No |
+| `CodingAgent` | Generate code via LLM | No |
+| `TestingAgent` | Generate and run tests | Yes |
+| `SecurityAgent` | Semgrep/Trivy/Gitleaks/ZAP audits | Yes |
+| `ReviewAgent` | Code review (correctness, style, perf) | No |
+| `MemoryAgent` | Compress hot → warm summaries | No |
+| `RecoveryAgent` | Retry/skip/replan stuck tasks | No |
 
 ---
 
 ## Validation Pipeline
 
-Every change passes 10 stages before it is accepted:
-
-| # | Stage | Tool | Blocking |
+| # | Stage | Required | Languages |
 |---|---|---|---|
-| 1 | Compile | `cargo check` | Yes |
-| 2 | Lint | `cargo clippy` | Yes |
-| 3 | TypeCheck | `cargo check --tests` | Yes |
-| 4 | UnitTest | `cargo test --lib` | Yes |
-| 5 | IntegrationTest | `cargo test --test *` | Optional |
-| 6 | E2ETest | Playwright / custom | Optional |
-| 7 | SecurityScan | `cargo audit` + semgrep | Yes |
-| 8 | Startup | Health check probe | Optional |
-| 9 | Performance | Build-time regression | Optional |
-| 10 | Regression | Full test suite | Optional |
-
-TypeScript uses Biome + Vitest; Python uses pytest. The pipeline auto-detects the project language from `Cargo.toml`, `package.json`, or `pyproject.toml`.
-
----
-
-## Security Hardening
-
-```sh
-continuum harden --mode audit        # passive scan, no changes
-continuum harden --mode hardening    # scan + automated fixes
-continuum harden --mode enterprise   # hardening + compliance attestation
-```
-
-| Mode | Capabilities | What it does |
-|---|---|---|
-| `audit` | Read-only | Semgrep + Trivy + Gitleaks + ZAP; reports findings |
-| `hardening` | Network + secrets + models | Remediates findings, applies patches, dependency updates |
-| `enterprise` | All | Hardening + SOC2 compliance attestation + audit log + RBAC |
-
-Semgrep rules included: command injection, hardcoded secrets, unsafe functions, inline assembly.
+| 1 | Compile | Yes | Rust (cargo check) |
+| 2 | Lint | Yes | Rust (clippy), TypeScript (Biome) |
+| 3 | TypeCheck | Yes | Rust (cargo check --tests) |
+| 4 | UnitTest | Yes | Rust, TypeScript (Vitest), Python (pytest) |
+| 5 | IntegrationTest | No | Cargo test | |
+| 6 | E2ETest | No | Playwright / custom |
+| 7 | SecurityScan | Yes | Cargo audit, semgrep, trivy, gitleaks |
+| 8 | Startup | No | Sandbox health probe |
+| 9 | Performance | No | Build time regression check |
+| 10 | Regression | No | Full test suite |
 
 ---
 
 ## Memory & Recovery
 
-### Three-tier memory
+**3-tier memory engine:**
 
 ```
-Hot  — full fidelity, recent context, SQLite
-  ↓  auto-compress when token cap is reached
-Warm — LLM-compressed summaries of completed sessions
-  ↓  background archive
-Cold — vector embeddings for semantic recall (SQLite-vec / Qdrant)
+Hot  → full SQLite context (recent session)
+Warm → LLM-compressed summaries
+Cold → vector embeddings for semantic recall
 ```
 
-### Recovery
-
-- **Checkpoint** after every plan node
-- **Heartbeat monitor** detects stuck tasks (configurable timeout)
-- **`continuum resume`** restarts from the last checkpoint
-- **`continuum replay <session>`** replays events for debugging with full event stream
-- **`continuum rollback <session> --to <checkpoint>`** reverts state
-- **Audit log** — append-only event record for compliance
-
----
-
-## Repository Intelligence
-
-Tree-sitter-based symbol extraction for four languages:
-
-| Language | Extracts |
-|---|---|
-| Rust | functions, structs, enums, traits, impl blocks, modules |
-| TypeScript | functions, classes, interfaces, types, enums |
-| Python | functions, classes, async functions |
-| Go | functions, methods, structs, interfaces |
-
-Impact analysis computes the full transitive dependent set for any changed symbol — so agents only re-validate what actually changed. Symbol-level granularity enables precise context loading.
-
----
-
-## Workspace Structure
-
-```
-continuum/
-├── crates/
-│   ├── continuum-core/           # All traits + types (Agent, Model, Sandbox, …)
-│   ├── continuum-config/         # Layered config (env → ~/.continuum/config.toml)
-│   ├── continuum-telemetry/      # OpenTelemetry + Prometheus + tracing
-│   ├── continuum-markdown/       # Engineering doc parser
-│   ├── continuum-repo/           # Tree-sitter repo indexer + symbol graph
-│   ├── continuum-planner/        # LLM planning engine + DAG construction
-│   ├── continuum-models/         # 10 provider implementations
-│   ├── continuum-models-registry/# Snapshot + build-time codegen (phf maps)
-│   ├── continuum-sandbox/        # Docker sandbox
-│   ├── continuum-storage/        # SQLite pool + migrations + vector backend
-│   ├── continuum-memory/         # Hot / warm / cold memory engine
-│   ├── continuum-agents/         # 8 agent implementations
-│   ├── continuum-validation/     # 10-stage validation pipeline
-│   ├── continuum-security/       # Hardening modes + compliance attestation
-│   ├── continuum-recovery/       # Checkpoints, replay, heartbeat, audit log
-│   ├── continuum-runtime/        # DAG scheduler + session orchestration
-│   ├── continuum-tools/          # Unified tool registry
-│   ├── continuum-tools-linters/  # Clippy runner
-│   ├── continuum-tools-security/ # Semgrep / Trivy / Gitleaks / ZAP / cargo-audit
-│   ├── continuum-tools-testing/  # cargo-test / Jest / K6 load runner
-│   ├── continuum-tools-browser/  # Playwright / chromiumoxide
-│   └── continuum-cli/            # Binary + ratatui TUI + 4-pane dashboard
-├── xtask/                        # Workspace automation (refresh-models, security-lint…)
-├── docs/                         # VISION · PRODUCT · ARCHITECTURE · ENGINEERING
-│                                 # TASKS · AGENTS · MODEL_RULES · SECURITY
-├── dashboards/                   # Grafana JSON dashboards (4 panels)
-├── fixtures/                     # Test fixture projects (Rust, TS, Python)
-└── Cargo.toml                    # Workspace root (24 members)
-```
+**Recovery system:**
+- Checkpoints after every plan node
+- Heartbeat monitor detects stuck tasks (configurable)
+- `continuum resume` — restart from last checkpoint
+- `continuum replay <session>` — debug via event stream
+- `continuum rollback --to <checkpoint>` — revert state
+- Append-only audit log for compliance
 
 ---
 
 ## Development
 
 ```sh
-# Build
 cargo build --workspace
-cargo build --release
+cargo test  --workspace        # 67+ tests
+cargo clippy --workspace       # must pass clean
 
-# Test
-cargo test --workspace
-
-# Lint (must pass cleanly)
-cargo clippy --workspace -- -D warnings
-
-# Refresh model registry from models.dev
-cargo xtask refresh-models
-
-# Security lint (checks Cap::grant() usage)
-cargo xtask security-lint
-
-# Generate JSON schemas
-cargo xtask gen-schemas
-
-# Run benchmarks
-cargo xtask bench
+cargo xtask refresh-models     # fetch latest model registry
+cargo xtask gen-schemas        # generate JSON schemas
+cargo xtask security-lint      # check Cap::grant() usage
+cargo xtask release            # release readiness checks
+cargo xtask bench              # benchmark + LOC stats
 ```
 
-### Key design principles
+### Design principles
 
-- **Capability tokens** (`Cap<T>`) — dangerous operations (model calls, sandbox exec, secrets) require an explicitly minted token; enforced at compile time
-- **No `unsafe` code** — `#![forbid(unsafe_code)]` in every crate
-- **Trait-based providers** — `ModelProvider`, `Agent`, `SandboxHandle`, `Planner` are all async traits; swap any backend without touching callers
-- **All tools run in sandbox** — zero `Command::spawn` on the host outside `continuum-sandbox`
-- **Snapshot-driven registry** — model metadata is vendored at `crates/continuum-models-registry/models-snapshot.json` and codegen'd at build time via `phf` for zero-overhead lookups
+- **Capability tokens** (`Cap<T>`) — dangerous operations require compile-time tokens
+- **No `unsafe`** — `#![forbid(unsafe_code)]` in every crate
+- **All tools in sandbox** — no `Command::spawn` on host outside `continuum-sandbox`
+- **Trait-based** — `ModelProvider`, `Agent`, `SandboxHandle`, `Planner` are all async traits
+- **Snapshot-driven registry** — model metadata vendored + build-time codegen via `phf`
 
 ---
 
-## Configuration reference
-
-`~/.continuum/config.toml`
-
-```toml
-[providers.anthropic]
-api_key = "sk-ant-..."
-
-[providers.openai]
-api_key  = "sk-..."
-base_url = "https://my-proxy.example.com/v1"   # optional
-
-[providers.google]
-api_key = "AIza..."
-
-[providers.groq]
-api_key = "gsk_..."
-
-[providers.deepseek]
-api_key = "sk-..."
-
-[providers.ollama]
-base_url = "http://localhost:11434/v1"          # default
-```
-
-Environment variables are checked before the file:
+## Workspace
 
 ```
-ANTHROPIC_API_KEY
-OPENAI_API_KEY
-GEMINI_API_KEY
-GROQ_API_KEY
-DEEPSEEK_API_KEY
-MISTRAL_API_KEY
-COHERE_API_KEY
-TOGETHER_API_KEY
-FIREWORKS_API_KEY
-CONTINUUM_<PROVIDER>_API_KEY   # generic override for any provider
-CONTINUUM_<PROVIDER>_BASE_URL  # generic base URL override
-```
-
----
-
-## Roadmap
-
-See [`docs/TASKS.md`](docs/TASKS.md) for the detailed phased implementation plan.
-
-| Phase | Status | Description |
-|---|---|---|
-| 1 | ✅ Done | Workspace bootstrap, 24 crates, CI, engineering docs |
-| 2 | ✅ Done | Models + storage substrate, AnthropicProvider, SQLite |
-| 3 | ✅ Done | Repo intelligence (tree-sitter), LLM planner, DAG |
-| 4 | ✅ Done | Docker sandbox, CodingAgent, Clippy runner, Scheduler |
-| 5 | ✅ Done | 10-stage validation pipeline (Rust, TS, Python, Go) |
-| 6 | ✅ Done | Memory engine (hot/warm/cold), recovery, replay, audit |
-| 7 | ✅ Done | All 8 agents, Gemini/DeepSeek/Groq providers, `continuum config` |
-| 8 | ✅ Done | Live TUI dashboard (4 panes), OpenTelemetry, Grafana dashboards |
-| 9 | ✅ Done | Security hardening (audit/hardening/enterprise), ZAP, SOC2 compliance |
-
----
-
-## Contributing
-
-1. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/AGENTS.md`](docs/AGENTS.md)
-2. Check [`docs/TASKS.md`](docs/TASKS.md) for open work
-3. Open an issue before large changes
-4. All code must pass `cargo clippy --workspace -- -D warnings`
-5. No `unsafe` — the workspace forbids it
-6. Sign your commits (`git commit -s`)
-
-```sh
-git clone https://github.com/your-org/continuum.git
-cd continuum
-git checkout -b feat/my-feature
-
-cargo build --workspace
-cargo test  --workspace
-cargo clippy --workspace -- -D warnings
-
-git commit -s -m "feat: describe the change"
-git push origin feat/my-feature
-# open a pull request
+crates/continuum-core/           # Foundation traits, types, errors, Cap<T>
+crates/continuum-config/         # Layered config (env → config.toml)
+crates/continuum-telemetry/      # OTLP + Prometheus + tracing
+crates/continuum-markdown/       # Engineering doc parser
+crates/continuum-storage/        # SQLite pool + vector backend
+crates/continuum-memory/         # 3-tier memory engine
+crates/continuum-models/         # 10 provider implementations
+crates/continuum-models-registry/# Vendored snapshot + build-time codegen
+crates/continuum-sandbox/        # Docker sandbox (Firecracker feature-gated)
+crates/continuum-repo/           # Tree-sitter indexer + symbol graph
+crates/continuum-planner/        # LLM planning engine + DAG
+crates/continuum-agents/         # 8 agent implementations
+crates/continuum-validation/     # 10-stage validation pipeline
+crates/continuum-security/       # Hardening modes + compliance
+crates/continuum-recovery/       # Checkpoints, replay, audit log
+crates/continuum-runtime/        # DAG scheduler + session orchestration
+crates/continuum-tools/          # Tool registry
+crates/continuum-tools-linters/  # Clippy runner
+crates/continuum-tools-security/ # Semgrep/Trivy/Gitleaks/ZAP/cargo-audit
+crates/continuum-tools-testing/  # Cargo-test/Jest/K6
+crates/continuum-tools-browser/  # Playwright/chromiumoxide
+crates/continuum-cli/            # Binary + TUI + dashboard + REPL
+xtask/                           # Workspace automation
+docs/                            # 8 engineering docs
+dashboards/                      # 4 Grafana dashboards
+fixtures/                        # Test fixtures (Rust, TS, Python)
 ```
 
 ---
 
 ## License
 
-Dual-licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT) — your choice.
+Dual-licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
 
 ---
 
 <p align="center">
-  <strong>Continuum</strong> — autonomous engineering, at production scale.<br>
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="docs/TASKS.md">Roadmap</a> ·
   <a href="docs/AGENTS.md">Agents</a> ·

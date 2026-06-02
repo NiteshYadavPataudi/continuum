@@ -5,14 +5,20 @@ use regex::Regex;
 
 use crate::language::Language;
 
+/// A symbol node with metadata, extracted from a source file.
 #[derive(Debug, Clone)]
 pub struct SymbolNode {
+    /// The symbol reference (qualified name, file, line).
     pub symbol: SymbolRef,
+    /// The kind of the symbol (e.g. "fn", "struct", "enum").
     pub kind: String,
+    /// The last line occupied by the symbol definition.
     pub end_line: u32,
+    /// An optional doc-comment extracted from the source.
     pub doc_comment: Option<String>,
 }
 
+/// Extract all symbols from `source` written in the given `language`.
 pub fn extract_symbols(path: &Path, source: &str, language: Language) -> Vec<SymbolNode> {
     match language {
         Language::Rust => extract_rust_symbols(path, source),
@@ -228,6 +234,7 @@ fn extract_go_symbols(path: &Path, source: &str) -> Vec<SymbolNode> {
     symbols
 }
 
+/// Extract imported symbol names from `source` for the given `language`.
 pub fn extract_imports(source: &str, language: Language) -> Vec<String> {
     match language {
         Language::Rust => source

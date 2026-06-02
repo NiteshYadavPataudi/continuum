@@ -91,15 +91,11 @@ pub async fn execute_goal(session: &mut ReplSession, goal: &str) {
                 .await
             {
                 Ok(index) => {
-                    let mprov = continuum_models::load_from_config(
-                        &session.config,
-                        &session.provider,
-                    );
+                    let mprov =
+                        continuum_models::load_from_config(&session.config, &session.provider);
                     let model_id = continuum_core::ids::ModelId::new(&session.model);
-                    let engine = continuum_planner::PlanningEngine::new(
-                        mprov.clone(),
-                        model_id.clone(),
-                    );
+                    let engine =
+                        continuum_planner::PlanningEngine::new(mprov.clone(), model_id.clone());
                     let engine_goal = continuum_core::planner::Goal::new(&safe_goal);
                     match engine.analyze(index, &docs).await {
                         Ok(analysis) => {
@@ -120,8 +116,10 @@ pub async fn execute_goal(session: &mut ReplSession, goal: &str) {
                                     {
                                         Ok(outcomes) => {
                                             println!();
-                                            println!("  Execution complete: {} task(s)",
-                                                outcomes.len());
+                                            println!(
+                                                "  Execution complete: {} task(s)",
+                                                outcomes.len()
+                                            );
                                             for outcome in &outcomes {
                                                 let status = outcome
                                                     .artifacts

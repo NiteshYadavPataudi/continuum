@@ -132,9 +132,15 @@ impl SandboxHandle for DockerHandle {
                 let client = self.client.clone();
                 output
                     .map(|item| match item {
-                        Ok(LogOutput::StdOut { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
-                        Ok(LogOutput::StdErr { message }) => Ok(ExecEvent::Stderr(message.to_vec())),
-                        Ok(LogOutput::Console { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
+                        Ok(LogOutput::StdOut { message }) => {
+                            Ok(ExecEvent::Stdout(message.to_vec()))
+                        }
+                        Ok(LogOutput::StdErr { message }) => {
+                            Ok(ExecEvent::Stderr(message.to_vec()))
+                        }
+                        Ok(LogOutput::Console { message }) => {
+                            Ok(ExecEvent::Stdout(message.to_vec()))
+                        }
                         Ok(LogOutput::StdIn { .. }) => Ok(ExecEvent::Stdout(Vec::new())),
                         Err(e) => Err(SandboxError::Other(e.to_string())),
                     })

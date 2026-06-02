@@ -11,6 +11,7 @@ pub mod execute;
 pub mod harden;
 pub mod init;
 pub mod install;
+pub mod login;
 pub mod memory;
 pub mod replay;
 pub mod resume;
@@ -23,6 +24,9 @@ pub struct InitArgs {
     /// Force overwriting existing engineering docs.
     #[arg(long)]
     pub force: bool,
+    /// Path to the project directory. Defaults to the current working directory.
+    #[arg(long)]
+    pub project: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args)]

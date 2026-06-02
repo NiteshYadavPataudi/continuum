@@ -5,8 +5,6 @@
 //! `Scheduler` walks the planner's DAG, dispatches to agents, drives the
 //! validation pipeline, journals to memory, and checkpoints through the
 //! recovery store.
-//!
-//! Phase 1 stub — full orchestration lands incrementally from phase 4 onward.
 
 #![warn(missing_docs)]
 

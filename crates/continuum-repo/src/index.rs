@@ -8,14 +8,20 @@ use petgraph::Direction;
 
 use crate::symbol::SymbolNode;
 
+/// A concrete implementation of `RepoIndex` backed by a dependency graph and symbol maps.
 pub struct RepoIndexImpl {
+    /// Symbols grouped by file path.
     pub symbols: BTreeMap<PathBuf, Vec<SymbolNode>>,
+    /// Directed graph of symbol dependencies.
     pub graph: DiGraph<SymbolRef, ()>,
+    /// Maps each `SymbolRef` to its node index in the graph.
     pub node_indices: HashMap<SymbolRef, NodeIndex>,
+    /// Maps file paths to their last-known modification timestamps.
     pub mtimes: HashMap<PathBuf, SystemTime>,
 }
 
 impl RepoIndexImpl {
+    /// Create an empty index with no symbols, graph nodes, or mtimes.
     pub fn new() -> Self {
         Self {
             symbols: BTreeMap::new(),
@@ -129,6 +135,10 @@ impl RepoIndex for RepoIndexImpl {
     }
 }
 
+/// Build a dependency graph from the extracted symbols and per-file import lists.
+///
+/// Each edge goes from the importing symbol to the imported symbol. Returns the graph
+/// and a lookup map from `SymbolRef` to `NodeIndex`.
 pub fn build_graph(
     symbols: &BTreeMap<PathBuf, Vec<SymbolNode>>,
     imports: &BTreeMap<PathBuf, Vec<String>>,

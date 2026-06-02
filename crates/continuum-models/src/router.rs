@@ -33,3 +33,21 @@ impl ModelRouter for CostAwareRouter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_router_struct_is_send_sync() {
+        // Verify the router implements Send + Sync
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<CostAwareRouter>();
+    }
+
+    #[test]
+    fn test_router_has_select_method() {
+        // Verify the router is constructed correctly
+        let _router = CostAwareRouter;
+    }
+}

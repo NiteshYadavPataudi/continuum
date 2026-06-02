@@ -1,5 +1,6 @@
 use std::path::Path;
 
+/// A programming language supported for symbol extraction.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Language {
     Rust,
@@ -9,6 +10,7 @@ pub enum Language {
 }
 
 impl Language {
+    /// Infer the language from a file path's extension.
     pub fn from_path(path: &Path) -> Option<Self> {
         match path.extension()?.to_str()? {
             "rs" => Some(Language::Rust),
@@ -19,6 +21,7 @@ impl Language {
         }
     }
 
+    /// Return the filename of the tree-sitter query file for this language.
     pub fn query_file(&self) -> &'static str {
         match self {
             Language::Rust => "rust.scm",
@@ -28,6 +31,7 @@ impl Language {
         }
     }
 
+    /// Return a slice of all supported languages.
     pub fn all() -> &'static [Language] {
         &[
             Language::Rust,

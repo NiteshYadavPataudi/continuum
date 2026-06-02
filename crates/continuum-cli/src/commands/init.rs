@@ -39,7 +39,10 @@ const DOCS: &[(&str, &str)] = &[
 ];
 
 pub async fn run(args: InitArgs) -> CmdResult {
-    let root = std::env::current_dir()?;
+    let root = args
+        .project
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let mut written = 0usize;
     let mut skipped = 0usize;
 
@@ -52,11 +55,22 @@ pub async fn run(args: InitArgs) -> CmdResult {
         }
     }
 
-    println!("continuum init: wrote {written} engineering docs, skipped {skipped} existing docs.");
+    println!(
+        "continuum init: wrote {written} engineering docs to {}, skipped {skipped} existing docs.",
+        root.display()
+    );
 
     if skipped > 0 && !args.force {
-        println!("Use --force to overwrite existing docs.");
+        println!("  Use --force to overwrite existing docs.");
     }
+
+    println!();
+    println!("  Next steps:");
+    println!("    1. Edit VISION.md and ARCHITECTURE.md to describe your project");
+    println!("    2. Run `continuum doctor` to verify your environment");
+    println!("    3. Run `continuum analyze` to analyze the repository");
+    println!("    4. Run `continuum execute --goal \"your goal\"` to start an execution session");
+    println!();
 
     Ok(())
 }

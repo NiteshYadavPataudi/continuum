@@ -114,7 +114,10 @@ impl ModelProvider for AnthropicProvider {
     async fn embed(&self, req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
         let response = self
             .client
-            .post(format!("{}/embeddings", self.api_url.trim_end_matches("/messages")))
+            .post(format!(
+                "{}/embeddings",
+                self.api_url.trim_end_matches("/messages")
+            ))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
@@ -159,9 +162,18 @@ impl ModelProvider for AnthropicProvider {
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let input_tokens = req
+            .messages
+            .iter()
+            .map(|m| m.content.len() as u32 / 4)
+            .sum();
         let output_tokens = req.max_tokens.unwrap_or(4096);
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
+        crate::cost::estimate_cost(
+            self.id().as_str(),
+            req.model.as_str(),
+            input_tokens,
+            output_tokens,
+        )
     }
 }
 

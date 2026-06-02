@@ -221,7 +221,9 @@ mod tests {
     fn test_load_default_when_no_config() {
         // Use a nonexistent provider with empty env hint to avoid env var interference
         let cfg = Config::default();
-        assert!(cfg.api_key("nonexistent-provider", "NONEXISTENT_ENV_VAR_HINT").is_none());
+        assert!(cfg
+            .api_key("nonexistent-provider", "NONEXISTENT_ENV_VAR_HINT")
+            .is_none());
     }
 
     #[test]

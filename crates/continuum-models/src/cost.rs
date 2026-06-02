@@ -18,3 +18,28 @@ pub fn estimate_cost(
 
     CostEstimate::new(input_tokens, output_tokens, usd)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_estimate_cost_known_model() {
+        let est = estimate_cost("anthropic", "claude-sonnet-4-20250514", 1000, 500);
+        assert!(est.usd > 0.0);
+        assert_eq!(est.input_tokens, 1000);
+        assert_eq!(est.output_tokens, 500);
+    }
+
+    #[test]
+    fn test_estimate_cost_unknown_model() {
+        let est = estimate_cost("unknown", "unknown-model", 1000, 500);
+        assert!(est.usd > 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_zero_tokens() {
+        let est = estimate_cost("openai", "gpt-4o", 0, 0);
+        assert_eq!(est.usd, 0.0);
+    }
+}

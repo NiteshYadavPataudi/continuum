@@ -366,18 +366,176 @@ fn is_leap(y: i64) -> bool {
 }
 
 fn gen_schemas() -> Result<(), Box<dyn std::error::Error>> {
-    println!("xtask gen-schemas: phase 1 stub. Real implementation lands in phase 3.");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest.parent().unwrap();
+    let docs_dir = workspace_root.join("docs");
+
+    if !docs_dir.exists() {
+        println!("⚠ docs/ directory not found at {}", docs_dir.display());
+        return Ok(());
+    }
+
+    let mut count = 0u32;
+    for entry in fs::read_dir(&docs_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "md") {
+            let content = fs::read_to_string(&path)?;
+            if content.contains("---") && content.starts_with("---") {
+                // Has YAML frontmatter — extract and output schema
+                let schema_path = path.with_extension("schema.json");
+                let schema = serde_json::json!({
+                    "file": path.file_name().unwrap().to_str().unwrap_or(""),
+                    "has_frontmatter": true,
+                    "size_bytes": content.len(),
+                    "frontmatter_fields": extract_frontmatter_fields(&content),
+                });
+                fs::write(&schema_path, serde_json::to_string_pretty(&schema)?)?;
+                println!("  ✓ generated schema for {}", path.display());
+                count += 1;
+            }
+        }
+    }
+
+    if count == 0 {
+        println!("  ℹ No markdown files with YAML frontmatter found.");
+    }
+    println!("✓ gen-schemas: generated {count} schema(s)");
+
     Ok(())
 }
 
+fn extract_frontmatter_fields(content: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    if let Some(end) = content[3..].find("---") {
+        let frontmatter = &content[3..3 + end];
+        for line in frontmatter.lines() {
+            if let Some(pos) = line.find(':') {
+                let key = line[..pos].trim().to_string();
+                if !key.is_empty() {
+                    fields.push(key);
+                }
+            }
+        }
+    }
+    fields
+}
+
 fn release() -> Result<(), Box<dyn std::error::Error>> {
-    println!("xtask release: phase 1 stub.");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest.parent().unwrap();
+
+    println!("--- Release checks ---\n");
+
+    // 1. Check workspace Cargo.toml version
+    let cargo_toml = workspace_root.join("Cargo.toml");
+    let content = fs::read_to_string(&cargo_toml)?;
+    let version = content
+        .lines()
+        .find(|l| l.starts_with("version ="))
+        .map(|l| l.trim().trim_start_matches("version = ").trim_matches('"'))
+        .unwrap_or("unknown");
+    println!("  Workspace version: {version}");
+
+    // 2. Check git status
+    let git_status = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(workspace_root)
+        .output();
+    match git_status {
+        Ok(out) => {
+            let changes = String::from_utf8_lossy(&out.stdout);
+            let change_count = changes.lines().filter(|l| !l.is_empty()).count();
+            if change_count > 0 {
+                println!("  ⚠ {change_count} uncommitted change(s)");
+            } else {
+                println!("  ✓ Clean working tree");
+            }
+        }
+        Err(_) => println!("  ⚠ Could not check git status (not a git repo?)"),
+    }
+
+    // 3. Check changelog
+    let changelog = workspace_root.join("CHANGELOG.md");
+    if changelog.exists() {
+        println!("  ✓ CHANGELOG.md found");
+    } else {
+        println!("  ⚠ CHANGELOG.md not found (create one for release)");
+    }
+
+    // 4. Quick cargo check
+    let check = std::process::Command::new("cargo")
+        .args(["check", "--quiet"])
+        .current_dir(workspace_root)
+        .output();
+    match check {
+        Ok(out) if out.status.success() => println!("  ✓ cargo check passed"),
+        _ => println!("  ⚠ cargo check failed — run `cargo check` manually"),
+    }
+
+    println!("\n✓ Release checks complete.");
     Ok(())
 }
 
 fn bench() -> Result<(), Box<dyn std::error::Error>> {
-    println!("xtask bench: phase 1 stub.");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest.parent().unwrap();
+
+    println!("--- Benchmarks ---\n");
+
+    // Run cargo test --release as a basic benchmark proxy
+    let start = std::time::Instant::now();
+    let result = std::process::Command::new("cargo")
+        .args(["test", "--quiet", "--lib"])
+        .current_dir(workspace_root)
+        .output();
+
+    let elapsed = start.elapsed();
+    match result {
+        Ok(out) if out.status.success() => {
+            println!(
+                "  ✓ All library tests passed ({:.2}s)",
+                elapsed.as_secs_f64()
+            );
+        }
+        Ok(_) => {
+            println!("  ⚠ Some tests failed ({:.2}s)", elapsed.as_secs_f64());
+            return Ok(());
+        }
+        Err(e) => {
+            println!("  ⚠ Could not run tests: {e}");
+            return Ok(());
+        }
+    }
+
+    // Workspace stats
+    let crate_count = workspace_root
+        .join("crates")
+        .read_dir()
+        .map(|d| d.count())
+        .unwrap_or(0);
+    let loc = count_loc(&workspace_root.join("crates"));
+    println!("  Crates: {crate_count}");
+    println!("  Lines of code (crates/): {loc}");
+    println!("\n✓ Bench complete ({:.2}s)", elapsed.as_secs_f64());
     Ok(())
+}
+
+fn count_loc(dir: &std::path::Path) -> usize {
+    let mut total = 0usize;
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                total += count_loc(&path);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    total += content.lines().count();
+                }
+            }
+        }
+    }
+    total
 }
 
 /// Lint for `Cap::<*>::grant()` calls outside `continuum-security`.

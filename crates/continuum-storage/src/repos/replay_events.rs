@@ -2,15 +2,21 @@ use sqlx::SqlitePool;
 
 use crate::error::StorageError;
 
+/// Repository for recording and replaying session events.
 pub struct ReplayEventRepo {
     pool: SqlitePool,
 }
 
 impl ReplayEventRepo {
+    /// Create a new `ReplayEventRepo` backed by the given connection pool.
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
+    /// Record a new replay event and return its auto-generated id.
+    ///
+    /// # Errors
+    /// Returns `StorageError::Sqlite` on query failure.
     pub async fn create(
         &self,
         session_id: &str,
@@ -27,6 +33,10 @@ impl ReplayEventRepo {
         Ok(result.last_insert_rowid())
     }
 
+    /// List replay events for a session, optionally starting after a given event id.
+    ///
+    /// # Errors
+    /// Returns `StorageError::Sqlite` on query failure.
     pub async fn list_by_session(
         &self,
         session_id: &str,
@@ -52,11 +62,17 @@ impl ReplayEventRepo {
     }
 }
 
+/// A row representing a single recorded replay event.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ReplayEventRow {
+    /// Auto-generated primary key.
     pub id: i64,
+    /// The session this event belongs to.
     pub session_id: String,
+    /// ISO-8601 timestamp of when the event was recorded.
     pub recorded_at: String,
+    /// The target component or handler for the event.
     pub target: String,
+    /// The JSON payload of the event.
     pub payload: String,
 }

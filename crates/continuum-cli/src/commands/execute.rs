@@ -76,7 +76,10 @@ pub async fn run(args: ExecuteArgs, model_override: Option<String>) -> CmdResult
         emit(DashboardEvent::Log {
             level: "WARN".into(),
             target: "executor".into(),
-            message: format!("No configured API key found for provider '{}'. Running with fallback/stubs.", provider_id),
+            message: format!(
+                "No configured API key found for provider '{}'. Running with fallback/stubs.",
+                provider_id
+            ),
         });
     }
 
@@ -105,7 +108,10 @@ pub async fn run(args: ExecuteArgs, model_override: Option<String>) -> CmdResult
         .estimate(&plan)
         .await
         .map_err(|e| format!("estimation failed: {e}"))?;
-    p_est.done(&format!("${:.4}, {:.1}s", estimate.usd, estimate.runtime_secs));
+    p_est.done(&format!(
+        "${:.4}, {:.1}s",
+        estimate.usd, estimate.runtime_secs
+    ));
 
     let p_contract = crate::output::Progress::new("Building execution contract");
     let contract = engine

@@ -75,3 +75,35 @@ impl Planner for PlanningEngine {
         contract::contract(execution_plan, &est).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_planning_engine_default() {
+        let engine = PlanningEngine::default();
+        assert!(engine.model.is_none());
+        assert_eq!(engine.model_id.as_str(), "claude-sonnet-4-5-20241022");
+    }
+
+    #[test]
+    fn test_planning_engine_with_model() {
+        let model_id = ModelId::from("gpt-4o");
+        let engine = PlanningEngine::new(None, model_id.clone());
+        assert!(engine.model.is_none());
+        assert_eq!(engine.model_id.as_str(), "gpt-4o");
+    }
+
+    #[tokio::test]
+    async fn test_estimate_on_empty_plan() {
+        let engine = PlanningEngine::default();
+        let plan = ExecutionPlan::default();
+        let result = engine.estimate(&plan).await;
+        assert!(result.is_ok());
+        let est = result.unwrap();
+        assert_eq!(est.input_tokens, 0);
+        assert_eq!(est.output_tokens, 0);
+        assert_eq!(est.usd, 0.0);
+    }
+}

@@ -120,8 +120,9 @@ impl VectorIndex for MemoryIndex {
                     "score": score,
                     "metadata": null,
                 });
-                serde_json::from_value(hit_val)
-                    .unwrap_or_else(|_| VectorHit::new(id.to_string(), score, serde_json::Value::Null))
+                serde_json::from_value(hit_val).unwrap_or_else(|_| {
+                    VectorHit::new(id.to_string(), score, serde_json::Value::Null)
+                })
             })
             .collect();
         Ok(hits)

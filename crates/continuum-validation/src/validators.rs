@@ -54,6 +54,7 @@ impl AllValidators {
     }
 }
 
+/// Macro to generate a simple command-executing validator for a given [`ValidationStage`].
 macro_rules! exec_validator {
     ($name:ident, $stage:expr, $required:expr, $argv:expr) => {
         #[derive(Debug)]
@@ -120,12 +121,14 @@ macro_rules! exec_validator {
     };
 }
 
+// Validator that runs `cargo check` for compilation errors.
 exec_validator!(
     CompileValidator,
     ValidationStage::Compile,
     true,
     vec!["cargo".into(), "check".into()]
 );
+// Validator that runs `cargo check` for type errors.
 exec_validator!(
     TypeCheckValidator,
     ValidationStage::TypeCheck,
@@ -133,6 +136,7 @@ exec_validator!(
     vec!["cargo".into(), "check".into()]
 );
 
+/// Validator that runs Clippy lint checks.
 #[derive(Debug)]
 pub struct LintValidator;
 
@@ -179,6 +183,7 @@ impl Validator for LintValidator {
     }
 }
 
+// Validator that runs `cargo test --lib` for unit tests.
 exec_validator!(
     UnitTestValidator,
     ValidationStage::UnitTest,
@@ -186,6 +191,7 @@ exec_validator!(
     vec!["cargo".into(), "test".into(), "--lib".into()]
 );
 
+// Validator that runs `cargo test --test *` for integration tests.
 exec_validator!(
     IntegrationTestValidator,
     ValidationStage::IntegrationTest,
@@ -193,6 +199,7 @@ exec_validator!(
     vec!["cargo".into(), "test".into(), "--test".into(), "*".into()]
 );
 
+/// Placeholder for end-to-end test validation. Currently reports as skipped.
 #[derive(Debug)]
 pub struct E2eTestValidator;
 
@@ -226,6 +233,7 @@ impl Validator for E2eTestValidator {
     }
 }
 
+/// Validator that runs `cargo-audit` security scanning.
 #[derive(Debug)]
 pub struct SecurityScanValidator;
 
@@ -272,6 +280,7 @@ impl Validator for SecurityScanValidator {
     }
 }
 
+/// Validator that checks sandbox startup health.
 #[derive(Debug)]
 pub struct StartupValidator;
 
@@ -338,6 +347,7 @@ impl Validator for StartupValidator {
     }
 }
 
+/// Validator that measures workspace build performance against a threshold.
 #[derive(Debug)]
 pub struct PerformanceValidator;
 
@@ -397,6 +407,7 @@ impl Validator for PerformanceValidator {
     }
 }
 
+/// Validator that runs workspace tests to detect regressions.
 #[derive(Debug)]
 pub struct RegressionValidator;
 

@@ -14,12 +14,15 @@ use crate::index::{build_graph, RepoIndexImpl};
 use crate::language::Language;
 use crate::symbol::{extract_imports, extract_symbols, SymbolNode};
 
+/// A `RepoLoader` that walks source files, extracts symbols and imports, and builds an
+/// in-memory dependency graph.
 pub struct Loader {
     index: Arc<RwLock<Option<Arc<RepoIndexImpl>>>>,
     root: PathBuf,
 }
 
 impl Loader {
+    /// Create a new loader that will operate under the given project root.
     pub fn new(root: PathBuf) -> Self {
         Loader {
             index: Arc::new(RwLock::new(None)),

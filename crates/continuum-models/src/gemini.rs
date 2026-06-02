@@ -185,13 +185,11 @@ impl ModelProvider for GeminiProvider {
             .map(|arr| {
                 arr.iter()
                     .filter_map(|e| {
-                        e.get("values")
-                            .and_then(|v| v.as_array())
-                            .and_then(|vals| {
-                                vals.iter()
-                                    .map(|v| v.as_f64().map(|f| f as f32))
-                                    .collect::<Option<Vec<_>>>()
-                            })
+                        e.get("values").and_then(|v| v.as_array()).and_then(|vals| {
+                            vals.iter()
+                                .map(|v| v.as_f64().map(|f| f as f32))
+                                .collect::<Option<Vec<_>>>()
+                        })
                     })
                     .collect()
             })
@@ -201,9 +199,18 @@ impl ModelProvider for GeminiProvider {
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let input_tokens = req
+            .messages
+            .iter()
+            .map(|m| m.content.len() as u32 / 4)
+            .sum();
         let output_tokens = req.max_tokens.unwrap_or(8192);
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
+        crate::cost::estimate_cost(
+            self.id().as_str(),
+            req.model.as_str(),
+            input_tokens,
+            output_tokens,
+        )
     }
 }
 

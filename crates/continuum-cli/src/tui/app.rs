@@ -665,7 +665,9 @@ impl TuiApp {
                     self.validation_failed += 1;
                 }
                 let status_str = if passed { "passed" } else { "failed" };
-                self.add_system_message(&format!("Validation {stage}: {status_str} ({findings} findings)"));
+                self.add_system_message(&format!(
+                    "Validation {stage}: {status_str} ({findings} findings)"
+                ));
             }
             DashboardEvent::CostUpdate { usd, tokens } => {
                 self.total_cost_usd = usd;
@@ -673,7 +675,13 @@ impl TuiApp {
                 self.total_tokens_in += tokens / 2; // approximate split
                 self.total_tokens_out += tokens / 2;
                 // Show cost in header via system message (throttled)
-                if self.messages.iter().filter(|m| matches!(m.role, MessageRole::System)).count() < 50 {
+                if self
+                    .messages
+                    .iter()
+                    .filter(|m| matches!(m.role, MessageRole::System))
+                    .count()
+                    < 50
+                {
                     self.add_system_message(&format!("Cost: ${usd:.4} | Tokens: {tokens}"));
                 }
             }
@@ -683,10 +691,12 @@ impl TuiApp {
                 message,
             } => {
                 // Track model errors
-                if level == "ERROR" || level == "WARN" {
-                    if message.contains("model") || message.contains("API") || message.contains("provider") {
-                        self.model_error = Some(format!("{}: {}", target, message));
-                    }
+                if (level == "ERROR" || level == "WARN")
+                    && (message.contains("model")
+                        || message.contains("API")
+                        || message.contains("provider"))
+                {
+                    self.model_error = Some(format!("{}: {}", target, message));
                 }
                 // Only show important logs to avoid spam
                 if level == "ERROR" || level == "WARN" || target == "executor" {

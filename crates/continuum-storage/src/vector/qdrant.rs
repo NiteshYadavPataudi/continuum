@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use continuum_core::memory::{VectorHit, VectorIndex, VectorPoint, VectorQuery};
 
+/// A Qdrant-backed vector index stub (not yet implemented).
 pub struct QdrantIndex;
 
 #[async_trait]
