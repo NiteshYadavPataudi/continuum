@@ -4,7 +4,8 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0%20%7C%20MIT-blue" alt="License"/>
   <img src="https://img.shields.io/badge/crates-24-8A2BE2" alt="24 crates"/>
   <img src="https://img.shields.io/badge/providers-10-green" alt="10 providers"/>
-  <img src="https://img.shields.io/badge/tests-67-passing-brightgreen" alt="67 tests"/>
+  <img src="https://img.shields.io/badge/tests-72-passing-brightgreen" alt="72 tests"/>
+  <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI passing"/>
 </p>
 
 <h1 align="center">Continuum</h1>
@@ -51,9 +52,9 @@ This triggers:
 | **Crash recovery** | Checkpoint after every plan node; resume, replay, and rollback |
 | **Security hardening** | 3 modes: audit / hardening / enterprise with compliance attestation |
 | **Docker sandbox** | All tool execution inside isolated containers |
-| **Live TUI dashboard** | 4-pane ratatui interface with real-time cost, token, and validation tracking |
+| **Live TUI dashboard** | 6-pane ratatui interface with real-time cost, token, validation, and live agent execution tracking |
 | **OpenTelemetry + Prometheus** | OTLP export, 4 Grafana dashboards |
-| **CLI + REPL + TUI** | Three interaction modes with full slash-command support |
+| **CLI + REPL + TUI** | Three interaction modes — REPL wired to full planning+execution, TUI with live scheduler events |
 
 ---
 
@@ -344,8 +345,10 @@ Cold → vector embeddings for semantic recall
 
 ```sh
 cargo build --workspace
-cargo test  --workspace        # 67+ tests
-cargo clippy --workspace       # must pass clean
+cargo test  --workspace        # 72+ tests
+cargo clippy --workspace       # must pass clean -D warnings
+cargo fmt --all -- --check     # must pass clean
+cargo doc --workspace --no-deps # must pass -D warnings
 
 cargo xtask refresh-models     # fetch latest model registry
 cargo xtask gen-schemas        # generate JSON schemas
@@ -358,7 +361,9 @@ cargo xtask bench              # benchmark + LOC stats
 
 - **Capability tokens** (`Cap<T>`) — dangerous operations require compile-time tokens
 - **No `unsafe`** — `#![forbid(unsafe_code)]` in every crate
-- **All tools in sandbox** — no `Command::spawn` on host outside `continuum-sandbox`
+- **All tools in sandbox** — Security scanners (semgrep/trivy/gitleaks) run in workspace directory, not bare host
+- **API key safety** — Keys sent via headers only, never in URL query parameters
+- **Path traversal prevention** — Agent artifact writes are validated against workspace boundaries
 - **Trait-based** — `ModelProvider`, `Agent`, `SandboxHandle`, `Planner` are all async traits
 - **Snapshot-driven registry** — model metadata vendored + build-time codegen via `phf`
 
