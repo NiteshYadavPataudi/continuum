@@ -9,7 +9,7 @@ use continuum_telemetry::DashboardEvent;
 
 use super::{CmdResult, ExecuteArgs};
 
-pub async fn run(args: ExecuteArgs) -> CmdResult {
+pub async fn run(args: ExecuteArgs, model_override: Option<String>) -> CmdResult {
     let root = std::env::current_dir().unwrap_or_default();
 
     let goal_text = args
@@ -59,25 +59,60 @@ pub async fn run(args: ExecuteArgs) -> CmdResult {
         let _ = dash_tx.send(event);
     };
 
+    // Load config and resolve provider/model
+    let config = continuum_config::Config::load();
+    let (provider_name, model_name) = crate::repl::detect_default_provider(&config);
+    let model_to_use = model_override.unwrap_or(model_name);
+
+    let (provider_id, model_id_str) = if model_to_use.contains('/') {
+        let parts: Vec<&str> = model_to_use.splitn(2, '/').collect();
+        (parts[0].to_string(), parts[1].to_string())
+    } else {
+        (provider_name, model_to_use)
+    };
+
+    let model_provider = continuum_models::load_from_config(&config, &provider_id);
+    if model_provider.is_none() {
+        emit(DashboardEvent::Log {
+            level: "WARN".into(),
+            target: "executor".into(),
+            message: format!("No configured API key found for provider '{}'. Running with fallback/stubs.", provider_id),
+        });
+    }
+
     // ── Planning phase ──────────────────────────────────────────────
-    let engine = continuum_planner::PlanningEngine::default();
+    let engine = continuum_planner::PlanningEngine::new(
+        model_provider.clone(),
+        continuum_core::ids::ModelId::new(&model_id_str),
+    );
+
+    let p_analysis = crate::output::Progress::new("Analyzing repository");
     let analysis = engine
         .analyze(index, &docs)
         .await
         .map_err(|e| format!("analysis failed: {e}"))?;
+    p_analysis.done(&analysis.summary);
 
+    let p_plan = crate::output::Progress::new("Planning execution strategy");
     let plan = engine
         .plan(goal, &analysis)
         .await
         .map_err(|e| format!("planning failed: {e}"))?;
+    p_plan.done(&format!("{} nodes", plan.nodes.len()));
+
+    let p_est = crate::output::Progress::new("Estimating cost and time");
     let estimate = engine
         .estimate(&plan)
         .await
         .map_err(|e| format!("estimation failed: {e}"))?;
+    p_est.done(&format!("${:.4}, {:.1}s", estimate.usd, estimate.runtime_secs));
+
+    let p_contract = crate::output::Progress::new("Building execution contract");
     let contract = engine
         .contract(&plan)
         .await
         .map_err(|e| format!("contract failed: {e}"))?;
+    p_contract.done(&format!("{} tasks", contract.summary.len()));
 
     if args.dry_run {
         println!("\n── Execution Contract (dry run) ──");
@@ -128,7 +163,7 @@ pub async fn run(args: ExecuteArgs) -> CmdResult {
     });
 
     let cancel = CancellationToken::new();
-    let scheduler = continuum_runtime::Scheduler::new();
+    let scheduler = continuum_runtime::Scheduler::with_models(model_provider, None);
     let runtime_session = continuum_runtime::Session::new().with_workspace_root(root.clone());
 
     if follow_tui {

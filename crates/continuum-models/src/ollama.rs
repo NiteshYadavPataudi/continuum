@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use futures::StreamExt;
+use tokio::sync::Mutex;
 
 use continuum_core::{
     caps::{CallModels, Cap},
@@ -13,7 +16,7 @@ pub struct OllamaProvider {
     api_url: String,
     client: reqwest::Client,
     models: Vec<ModelDescriptor>,
-    available: Vec<String>,
+    available: Arc<Mutex<Vec<String>>>,
 }
 
 impl OllamaProvider {
@@ -46,17 +49,18 @@ impl OllamaProvider {
             ],
             api_url: url,
             client: reqwest::Client::new(),
-            available: Vec::new(),
+            available: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     /// Check which models are available on the Ollama server.
-    pub async fn refresh_available(&mut self) {
+    pub async fn refresh_available(&self) {
         let url = format!("{}/api/tags", self.api_url);
         if let Ok(resp) = self.client.get(&url).send().await {
             if let Ok(data) = resp.json::<serde_json::Value>().await {
                 if let Some(models) = data.get("models").and_then(|v| v.as_array()) {
-                    self.available = models
+                    let mut avail = self.available.lock().await;
+                    *avail = models
                         .iter()
                         .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
                         .map(|s| s.to_string())

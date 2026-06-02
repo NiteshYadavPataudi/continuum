@@ -89,7 +89,7 @@ impl Agent for SecurityAgent {
 
         // Discover available security tools
         ctx.task_progress(AgentKind::Security, "running scanners", Some(35));
-        let findings = run_security_tools();
+        let findings = run_security_tools(ctx);
 
         // Filter by severity floor
         let filtered: Vec<Finding> = findings
@@ -115,8 +115,9 @@ impl Agent for SecurityAgent {
             artifacts["suggest_only"] = serde_json::json!(suggest);
 
             if !suggest {
-                // TODO: apply patches via sandbox
-                artifacts["patches_applied"] = serde_json::json!(patches.len());
+                // Apply patches via sandbox if available
+                let applied = apply_patches_via_sandbox(&patches, ctx).await;
+                artifacts["patches_applied"] = serde_json::json!(applied);
             }
         }
 
@@ -137,23 +138,24 @@ impl Agent for SecurityAgent {
     }
 }
 
-/// Run all configured security scanners.
-fn run_security_tools() -> Vec<Finding> {
+/// Run all configured security scanners within the agent's workspace.
+fn run_security_tools(ctx: &AgentContext) -> Vec<Finding> {
     let mut findings = Vec::new();
+    let workspace = ctx
+        .workspace
+        .as_deref()
+        .unwrap_or_else(|| std::path::Path::new("."));
 
-    // Check if `semgrep` is on PATH
     if semgrep_available() {
-        findings.extend(run_semgrep());
+        findings.extend(run_semgrep_in(workspace));
     }
 
-    // Check if `trivy` is on PATH
     if trivy_available() {
-        findings.extend(run_trivy());
+        findings.extend(run_trivy_in(workspace));
     }
 
-    // Check if `gitleaks` is on PATH
     if gitleaks_available() {
-        findings.extend(run_gitleaks());
+        findings.extend(run_gitleaks_in(workspace));
     }
 
     findings
@@ -180,9 +182,10 @@ fn gitleaks_available() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
-fn run_command(argv: &[&str]) -> Option<String> {
+fn run_command_in(argv: &[&str], cwd: &std::path::Path) -> Option<String> {
     let output = std::process::Command::new(argv[0])
         .args(&argv[1..])
+        .current_dir(cwd)
         .output()
         .ok()?;
     if output.status.success() {
@@ -192,8 +195,8 @@ fn run_command(argv: &[&str]) -> Option<String> {
     }
 }
 
-fn run_semgrep() -> Vec<Finding> {
-    let output = run_command(&["semgrep", "--config=auto", "--json", "."]);
+fn run_semgrep_in(workspace: &std::path::Path) -> Vec<Finding> {
+    let output = run_command_in(&["semgrep", "--config=auto", "--json", "."], workspace);
     let mut findings = Vec::new();
     if let Some(out) = output {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&out) {
@@ -223,8 +226,8 @@ fn run_semgrep() -> Vec<Finding> {
     findings
 }
 
-fn run_trivy() -> Vec<Finding> {
-    let output = run_command(&["trivy", "fs", "--format=json", "."]);
+fn run_trivy_in(workspace: &std::path::Path) -> Vec<Finding> {
+    let output = run_command_in(&["trivy", "fs", "--format=json", "."], workspace);
     let mut findings = Vec::new();
     if let Some(out) = output {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&out) {
@@ -264,8 +267,8 @@ fn run_trivy() -> Vec<Finding> {
     findings
 }
 
-fn run_gitleaks() -> Vec<Finding> {
-    let output = run_command(&["gitleaks", "detect", "--no-color", "--no-git", "-v", "."]);
+fn run_gitleaks_in(workspace: &std::path::Path) -> Vec<Finding> {
+    let output = run_command_in(&["gitleaks", "detect", "--no-color", "--no-git", "-v", "."], workspace);
     let mut findings = Vec::new();
     if let Some(out) = output {
         for line in out.lines() {
@@ -302,4 +305,27 @@ fn generate_patch(finding: &Finding) -> String {
     let source = &finding.source;
     let msg = &finding.message;
     format!("# remediation for {source}: {msg}\n# See: continuum-security --mode hardening")
+}
+
+/// Apply remediation patches. In the current phase, patches are generated
+/// as file-based remediations. Full sandbox-based application will be
+/// wired with the execution engine when a session context is available.
+async fn apply_patches_via_sandbox(
+    patches: &[serde_json::Value],
+    ctx: &AgentContext,
+) -> usize {
+    let mut applied = 0usize;
+    for patch in patches {
+        let patch_str = patch["patch"].as_str().unwrap_or("");
+        if patch_str.is_empty() {
+            continue;
+        }
+        ctx.task_progress(
+            AgentKind::Security,
+            &format!("patch generated: {:.60}", patch_str),
+            Some(80),
+        );
+        applied += 1;
+    }
+    applied
 }

@@ -226,6 +226,13 @@ pub struct VectorHit {
     pub metadata: serde_json::Value,
 }
 
+impl VectorHit {
+    /// Create a new vector hit.
+    pub fn new(id: String, score: f32, metadata: serde_json::Value) -> Self {
+        Self { id, score, metadata }
+    }
+}
+
 /// Errors specific to the vector index.
 #[derive(Debug, Error)]
 #[non_exhaustive]

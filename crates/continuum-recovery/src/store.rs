@@ -122,11 +122,11 @@ impl RecoveryStore for SqliteRecovery {
         session: SessionId,
         from: CheckpointId,
     ) -> Result<ReplayStream, RecoveryError> {
-        let _ = from;
         let session_id = session.to_string();
         let events = self.events.clone();
+        let from_id = from.to_string().parse::<i64>().unwrap_or(0);
         let rows = events
-            .list_by_session(&session_id, None)
+            .list_by_session(&session_id, Some(from_id))
             .await
             .unwrap_or_default();
         let items: Vec<Result<ReplayEvent, RecoveryError>> = rows

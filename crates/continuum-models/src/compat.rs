@@ -170,15 +170,55 @@ impl ModelProvider for CompatProvider {
         Ok(delta_stream.boxed())
     }
 
-    async fn embed(&self, _req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
-        Err(ModelError::Other(format!(
-            "{} embeddings not implemented",
-            self.provider_id
-        )))
+    async fn embed(&self, req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
+        let response = self
+            .client
+            .post(self.api_url.replace("/chat/completions", "/embeddings"))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": req.model.as_str(),
+                "input": req.inputs,
+            }))
+            .send()
+            .await
+            .map_err(|e| ModelError::Network(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let provider = self.id();
+            return Err(match status.as_u16() {
+                429 => ModelError::RateLimited { provider },
+                401 | 403 => ModelError::AuthFailed(provider),
+                _ => {
+                    let body = response.text().await.unwrap_or_default();
+                    ModelError::Other(format!("{} HTTP {status}: {body}", self.provider_id))
+                }
+            });
+        }
+
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ModelError::Malformed(e.to_string()))?;
+
+        let vectors = vec![data
+            .pointer("/data/0/embedding")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .unwrap_or_default()];
+
+        Ok(EmbedResponse::new(vectors))
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), 0, 0)
+        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let output_tokens = req.max_tokens.unwrap_or(4096);
+        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
     }
 }
 

@@ -62,7 +62,7 @@ impl ModelProvider for AnthropicProvider {
         req: CompletionRequest,
         cancel: CancellationToken,
     ) -> Result<CompletionStream, ModelError> {
-        let url = format!("{}/messages", self.api_url);
+        let url = self.api_url.clone();
         let messages: Vec<serde_json::Value> = req
             .messages
             .iter()
@@ -111,14 +111,57 @@ impl ModelProvider for AnthropicProvider {
         Ok(delta_stream.boxed())
     }
 
-    async fn embed(&self, _req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
-        Err(ModelError::Other(
-            "embeddings not supported by Anthropic in phase 2".into(),
-        ))
+    async fn embed(&self, req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
+        let response = self
+            .client
+            .post(format!("{}/embeddings", self.api_url.trim_end_matches("/messages")))
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&serde_json::json!({
+                "model": req.model.as_str(),
+                "input": req.inputs,
+            }))
+            .send()
+            .await
+            .map_err(|e| ModelError::Network(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let provider = ProviderId::new(continuum_models_registry::ANTHROPIC);
+            return Err(match status.as_u16() {
+                429 => ModelError::RateLimited { provider },
+                401 => ModelError::AuthFailed(provider),
+                _ => {
+                    let body = response.text().await.unwrap_or_default();
+                    ModelError::Other(format!("Anthropic HTTP {}: {}", status, body))
+                }
+            });
+        }
+
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ModelError::Malformed(e.to_string()))?;
+
+        let vectors = data
+            .pointer("/data/0/values")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| {
+                arr.iter()
+                    .map(|v| v.as_f64().map(|f| f as f32))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .map(|vec| vec![vec])
+            .unwrap_or_default();
+
+        Ok(EmbedResponse::new(vectors))
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), 0, 0)
+        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let output_tokens = req.max_tokens.unwrap_or(4096);
+        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
     }
 }
 

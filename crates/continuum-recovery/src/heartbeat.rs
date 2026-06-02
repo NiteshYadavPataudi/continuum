@@ -11,6 +11,8 @@ pub struct HeartbeatMonitor {
     recovery: Arc<SqliteRecovery>,
     session: SessionId,
     running: Arc<Mutex<bool>>,
+    retry_count: Arc<Mutex<i32>>,
+    cumulative_usd: Arc<Mutex<f64>>,
 }
 
 impl HeartbeatMonitor {
@@ -20,6 +22,8 @@ impl HeartbeatMonitor {
             recovery,
             session,
             running: Arc::new(Mutex::new(false)),
+            retry_count: Arc::new(Mutex::new(0)),
+            cumulative_usd: Arc::new(Mutex::new(0.0)),
         }
     }
 
@@ -33,6 +37,8 @@ impl HeartbeatMonitor {
         let recovery = self.recovery.clone();
         let session = self.session;
         let running = self.running.clone();
+        let retry_count = self.retry_count.clone();
+        let cumulative_usd = self.cumulative_usd.clone();
 
         tokio::spawn(async move {
             loop {
@@ -42,10 +48,27 @@ impl HeartbeatMonitor {
                         break;
                     }
                 }
-                let _ = recovery.record_heartbeat(session, 0, 0.0).await;
+                let (rc, cu) = {
+                    let rc = retry_count.lock().await;
+                    let cu = cumulative_usd.lock().await;
+                    (*rc, *cu)
+                };
+                let _ = recovery.record_heartbeat(session, rc, cu).await;
                 tokio::time::sleep(Duration::from_secs(30)).await;
             }
         });
+    }
+
+    /// Update the retry count tracked by heartbeat.
+    pub async fn increment_retry(&self) {
+        let mut rc = self.retry_count.lock().await;
+        *rc += 1;
+    }
+
+    /// Update the cumulative USD tracked by heartbeat.
+    pub async fn add_cost(&self, usd: f64) {
+        let mut cu = self.cumulative_usd.lock().await;
+        *cu += usd;
     }
 
     /// Stop the heartbeat loop.

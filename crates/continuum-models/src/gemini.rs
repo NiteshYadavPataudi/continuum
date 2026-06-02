@@ -17,7 +17,7 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    const DEFAULT_API_URL: &'static str = "https://generativelanguage.googleapis.com/v1beta";
+    const DEFAULT_API_URL: &'static str = "https://generativelanguage.googleapis.com/v1";
 
     /// Create a Gemini provider with the given API key.
     pub fn new(api_key: String, _secrets: Cap<ReadSecrets>) -> Self {
@@ -98,16 +98,16 @@ impl ModelProvider for GeminiProvider {
         }
 
         let url = format!(
-            "{}/models/{}:streamGenerateContent?alt=sse&key={}",
+            "{}/models/{}:streamGenerateContent?alt=sse",
             self.api_url,
             req.model.as_str(),
-            self.api_key
         );
 
         let response = self
             .client
             .post(&url)
             .header("Content-Type", "application/json")
+            .header("x-goog-api-key", &self.api_key)
             .json(&body)
             .send()
             .await
@@ -141,14 +141,69 @@ impl ModelProvider for GeminiProvider {
         Ok(delta_stream.boxed())
     }
 
-    async fn embed(&self, _req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
-        Err(ModelError::Other(
-            "Gemini embeddings not implemented yet".into(),
-        ))
+    async fn embed(&self, req: EmbedRequest) -> Result<EmbedResponse, ModelError> {
+        let response = self
+            .client
+            .post(format!(
+                "{}/models/{}:batchEmbedContents",
+                self.api_url,
+                req.model.as_str(),
+            ))
+            .header("Content-Type", "application/json")
+            .header("x-goog-api-key", &self.api_key)
+            .json(&serde_json::json!({
+                "requests": req.inputs.iter().map(|text| serde_json::json!({
+                    "model": format!("models/{}", req.model.as_str()),
+                    "content": { "parts": [{ "text": text }] }
+                })).collect::<Vec<_>>(),
+            }))
+            .send()
+            .await
+            .map_err(|e| ModelError::Network(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let provider = ProviderId::new("google");
+            return Err(match status.as_u16() {
+                429 => ModelError::RateLimited { provider },
+                401 | 403 => ModelError::AuthFailed(provider),
+                _ => {
+                    let body = response.text().await.unwrap_or_default();
+                    ModelError::Other(format!("Gemini HTTP {status}: {body}"))
+                }
+            });
+        }
+
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ModelError::Malformed(e.to_string()))?;
+
+        let vectors: Vec<Vec<f32>> = data
+            .get("embeddings")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|e| {
+                        e.get("values")
+                            .and_then(|v| v.as_array())
+                            .and_then(|vals| {
+                                vals.iter()
+                                    .map(|v| v.as_f64().map(|f| f as f32))
+                                    .collect::<Option<Vec<_>>>()
+                            })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(EmbedResponse::new(vectors))
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), 0, 0)
+        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let output_tokens = req.max_tokens.unwrap_or(8192);
+        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
     }
 }
 

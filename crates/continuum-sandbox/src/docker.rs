@@ -127,16 +127,28 @@ impl SandboxHandle for DockerHandle {
             .map_err(|e| SandboxError::Other(format!("start exec: {e}")))?;
 
         let stream: BoxStream<'static, Result<ExecEvent, SandboxError>> = match output {
-            StartExecResults::Attached { output, .. } => output
-                .map(|item| match item {
-                    Ok(LogOutput::StdOut { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
-                    Ok(LogOutput::StdErr { message }) => Ok(ExecEvent::Stderr(message.to_vec())),
-                    Ok(LogOutput::Console { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
-                    Ok(LogOutput::StdIn { .. }) => Ok(ExecEvent::Stdout(Vec::new())),
-                    Err(e) => Err(SandboxError::Other(e.to_string())),
-                })
-                .chain(futures::stream::once(async { Ok(ExecEvent::Exit(0)) }))
-                .boxed(),
+            StartExecResults::Attached { output, .. } => {
+                let exec_id = exec.id.clone();
+                let client = self.client.clone();
+                output
+                    .map(|item| match item {
+                        Ok(LogOutput::StdOut { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
+                        Ok(LogOutput::StdErr { message }) => Ok(ExecEvent::Stderr(message.to_vec())),
+                        Ok(LogOutput::Console { message }) => Ok(ExecEvent::Stdout(message.to_vec())),
+                        Ok(LogOutput::StdIn { .. }) => Ok(ExecEvent::Stdout(Vec::new())),
+                        Err(e) => Err(SandboxError::Other(e.to_string())),
+                    })
+                    .chain(futures::stream::once(async move {
+                        match client.inspect_exec(&exec_id).await {
+                            Ok(result) => {
+                                let code = result.exit_code.unwrap_or(0) as i32;
+                                Ok(ExecEvent::Exit(code))
+                            }
+                            Err(e) => Err(SandboxError::Other(format!("inspect exec: {e}"))),
+                        }
+                    }))
+                    .boxed()
+            }
             StartExecResults::Detached => {
                 return Err(SandboxError::Other("exec detached unexpectedly".into()));
             }
@@ -236,11 +248,45 @@ impl SandboxHandle for DockerHandle {
         }
     }
 
-    async fn restore(&self, _snap: SnapshotId) -> Result<(), SandboxError> {
+    async fn restore(&self, snap: SnapshotId) -> Result<(), SandboxError> {
         self.client
-            .restart_container(&self.container_id, None)
+            .stop_container(&self.container_id, None)
             .await
-            .map_err(|e| SandboxError::Other(format!("restart container: {e}")))?;
+            .map_err(|e| SandboxError::Other(format!("stop container for restore: {e}")))?;
+
+        self.client
+            .remove_container(&self.container_id, None)
+            .await
+            .map_err(|e| SandboxError::Other(format!("remove container for restore: {e}")))?;
+
+        let image = format!("continuum-snap:{snap}");
+        let new_name = format!("continuum-{}", SandboxId::new());
+
+        let config = Config {
+            image: Some(image),
+            host_config: Some(bollard::models::HostConfig {
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let container = self
+            .client
+            .create_container(
+                Some(bollard::container::CreateContainerOptions {
+                    name: new_name,
+                    platform: None,
+                }),
+                config,
+            )
+            .await
+            .map_err(|e| SandboxError::Other(format!("create container from snapshot: {e}")))?;
+
+        self.client
+            .start_container::<String>(&container.id, None)
+            .await
+            .map_err(|e| SandboxError::Other(format!("start container from snapshot: {e}")))?;
+
         Ok(())
     }
 

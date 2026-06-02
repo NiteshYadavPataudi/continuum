@@ -152,7 +152,9 @@ impl ModelProvider for OpenAIProvider {
     }
 
     fn estimate_cost(&self, req: &CompletionRequest) -> CostEstimate {
-        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), 0, 0)
+        let input_tokens = req.messages.iter().map(|m| m.content.len() as u32 / 4).sum();
+        let output_tokens = req.max_tokens.unwrap_or(4096);
+        crate::cost::estimate_cost(self.id().as_str(), req.model.as_str(), input_tokens, output_tokens)
     }
 }
 

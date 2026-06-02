@@ -84,8 +84,11 @@ impl Scheduler {
 
     /// Create a scheduler with real agents wired to model providers.
     /// Uses `ModelId::new("default")` as the model identifier.
-    /// If `memory` is `None`, a stub `MemoryAgent` is used.
-    pub fn with_models(model: Option<Arc<dyn ModelProvider>>) -> Self {
+    /// If `memory_store` is `None`, a stub `MemoryAgent` is used.
+    pub fn with_models(
+        model: Option<Arc<dyn ModelProvider>>,
+        memory_store: Option<Arc<dyn continuum_core::memory::MemoryStore>>,
+    ) -> Self {
         use continuum_agents::*;
         let model_id = continuum_core::ids::ModelId::new("default");
         let mut agents: HashMap<AgentKind, Arc<dyn Agent>> = HashMap::new();
@@ -115,8 +118,13 @@ impl Scheduler {
         );
         agents.insert(
             AgentKind::Recovery,
-            Arc::new(RecoveryAgent::new(model, model_id)),
+            Arc::new(RecoveryAgent::new(model.clone(), model_id.clone())),
         );
+        let memory_agent: Arc<dyn Agent> = match memory_store {
+            Some(store) => Arc::new(MemoryAgent::new(store, model, model_id, 64000)),
+            None => Arc::new(StubAgent::new(AgentKind::Memory)),
+        };
+        agents.insert(AgentKind::Memory, memory_agent);
         let mut agent_limits = HashMap::new();
         for (kind, agent) in &agents {
             let max = agent.capabilities().max_concurrency.max(1) as usize;
@@ -803,7 +811,18 @@ fn write_task_artifacts(
         .or_else(|| node.payload.get("path").and_then(|v| v.as_str()));
     let code = outcome.artifacts.get("code").and_then(|v| v.as_str());
     if let (Some(target_path), Some(code)) = (target_path, code) {
-        let path = workspace.join(target_path);
+        let mut path = workspace.to_path_buf();
+        for component in target_path.split('/').chain(target_path.split('\\')) {
+            match component {
+                "" | "." => continue,
+                ".." => {
+                    return Err(PlanError::Other(
+                        "refusing to write outside workspace".into(),
+                    ));
+                }
+                part => path.push(part),
+            }
+        }
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| PlanError::Other(format!("create artifact parent: {e}")))?;
@@ -978,7 +997,7 @@ async fn execute_task_node(
         let _ = memory.put(MemoryLayer::Hot, item).await;
     }
 
-    let completed = completed_nodes.fetch_add(1, Ordering::SeqCst) + 1;
+    let completed = completed_nodes.fetch_add(1, Ordering::AcqRel) + 1;
     let percent = (completed.checked_mul(100))
         .and_then(|v| v.checked_div(total_nodes))
         .map(|v| v.min(100))
@@ -1001,6 +1020,19 @@ async fn execute_task_node(
         node.agent_kind,
         reporter.as_ref(),
     )?;
+
+    if workspace.isolated {
+        let _ = Command::new("git")
+            .args([
+                "-C",
+                &workspace_path.display().to_string(),
+                "worktree",
+                "remove",
+                "--force",
+                &workspace_path.display().to_string(),
+            ])
+            .output();
+    }
 
     if let Some(reporter) = reporter.as_ref() {
         reporter.task_progress(node.id, node.agent_kind, "completed".into(), Some(percent));

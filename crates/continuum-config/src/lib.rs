@@ -31,13 +31,26 @@ pub struct ProviderConfig {
 }
 
 impl Config {
-    /// Load config from `~/.continuum/config.toml`. Returns empty config on any error.
+    /// Load config from `~/.continuum/config.toml`. Returns empty config on any error
+    /// but logs a warning to stderr when parsing fails.
     pub fn load() -> Self {
         if let Some(path) = config_path() {
             if path.exists() {
-                if let Ok(text) = std::fs::read_to_string(&path) {
-                    if let Ok(cfg) = toml::from_str::<Config>(&text) {
-                        return cfg;
+                match std::fs::read_to_string(&path) {
+                    Ok(text) => match toml::from_str::<Config>(&text) {
+                        Ok(cfg) => return cfg,
+                        Err(e) => {
+                            tracing::warn!(
+                                "failed to parse config file {}: {e} — using defaults",
+                                path.display()
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            "failed to read config file {}: {e} — using defaults",
+                            path.display()
+                        );
                     }
                 }
             }
@@ -130,6 +143,98 @@ impl Config {
 /// Filesystem path for the user-level config file (`~/.continuum/config.toml`).
 pub fn config_path() -> Option<PathBuf> {
     directories::UserDirs::new().map(|u| u.home_dir().join(".continuum").join("config.toml"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_set_and_get_api_key() {
+        let mut cfg = Config::default();
+        cfg.set_api_key("anthropic", "sk-ant-test123");
+        assert_eq!(
+            cfg.api_key("anthropic", "ANTHROPIC_API_KEY"),
+            Some("sk-ant-test123".to_string())
+        );
+    }
+
+    #[test]
+    fn test_set_and_get_base_url() {
+        let mut cfg = Config::default();
+        cfg.set_base_url("openai", "https://my-proxy/v1");
+        assert_eq!(
+            cfg.base_url("openai"),
+            Some("https://my-proxy/v1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_unset_api_key() {
+        let mut cfg = Config::default();
+        cfg.set_api_key("anthropic", "sk-ant-test123");
+        cfg.unset("anthropic", "api_key");
+        assert_eq!(cfg.api_key("anthropic", "ANTHROPIC_API_KEY"), None);
+    }
+
+    #[test]
+    fn test_unset_base_url() {
+        let mut cfg = Config::default();
+        cfg.set_base_url("openai", "https://my-proxy/v1");
+        cfg.unset("openai", "base_url");
+        assert!(cfg.base_url("openai").is_none());
+    }
+
+    #[test]
+    fn test_api_key_unknown_provider() {
+        let cfg = Config::default();
+        assert_eq!(cfg.api_key("nonexistent", ""), None);
+    }
+
+    #[test]
+    fn test_save_and_load_roundtrip() {
+        // This test uses a temp dir; it may be affected by env vars.
+        // We test a provider with a custom env hint to avoid conflicts.
+        let dir = std::env::temp_dir().join(format!("continuum-rnd-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("HOME", &dir);
+
+        let mut cfg = Config::default();
+        cfg.set_api_key("testprovider", "test-key-roundtrip");
+        cfg.set_base_url("testprovider", "http://localhost:8080/v1");
+
+        let result = cfg.save();
+        assert!(result.is_ok(), "save failed: {:?}", result.err());
+
+        let loaded = Config::load();
+        assert_eq!(
+            loaded.api_key("testprovider", "TESTPROVIDER_API_KEY"),
+            Some("test-key-roundtrip".to_string())
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        std::env::remove_var("HOME");
+    }
+
+    #[test]
+    fn test_load_default_when_no_config() {
+        // Use a nonexistent provider with empty env hint to avoid env var interference
+        let cfg = Config::default();
+        assert!(cfg.api_key("nonexistent-provider", "NONEXISTENT_ENV_VAR_HINT").is_none());
+    }
+
+    #[test]
+    fn test_multiple_providers() {
+        let mut cfg = Config::default();
+        cfg.set_api_key("anthropic", "sk-ant-1");
+        cfg.set_api_key("openai", "sk-openai-1");
+        cfg.set_api_key("gemini", "gemini-key-1");
+
+        assert_eq!(cfg.api_key("anthropic", ""), Some("sk-ant-1".to_string()));
+        assert_eq!(cfg.api_key("openai", ""), Some("sk-openai-1".to_string()));
+        assert_eq!(cfg.api_key("gemini", ""), Some("gemini-key-1".to_string()));
+    }
 }
 
 /// Errors produced by config I/O operations.

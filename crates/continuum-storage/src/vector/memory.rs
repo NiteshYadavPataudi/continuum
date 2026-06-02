@@ -1,13 +1,14 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 use async_trait::async_trait;
 use continuum_core::ids::MemoryId;
 use continuum_core::memory::{VectorHit, VectorIndex, VectorPoint, VectorQuery};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::error::VectorError;
 
+/// Compute the cosine similarity between two vectors.
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
     let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -18,11 +19,13 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     dot / (norm_a * norm_b)
 }
 
+/// An in-memory vector index using cosine similarity search, backed by a `HashMap`.
 pub struct MemoryIndex {
     vectors: Mutex<HashMap<Uuid, Vec<f32>>>,
 }
 
 impl MemoryIndex {
+    /// Create an empty in-memory index.
     pub fn new() -> Self {
         Self {
             vectors: Mutex::new(HashMap::new()),
@@ -37,9 +40,14 @@ impl Default for MemoryIndex {
 }
 
 impl MemoryIndex {
+    /// Insert or update a vector. Validates dimension consistency on update.
+    ///
+    /// # Errors
+    /// Returns `VectorError::DimensionMismatch` if the dimension differs from an existing vector
+    /// with the same id.
     pub async fn upsert(&self, id: MemoryId, vector: Vec<f32>) -> Result<(), VectorError> {
         let uuid = *id.as_uuid();
-        let mut map = self.vectors.lock().unwrap();
+        let mut map = self.vectors.lock().await;
         if let Some(existing) = map.get(&uuid) {
             if existing.len() != vector.len() {
                 return Err(VectorError::DimensionMismatch {
@@ -52,12 +60,13 @@ impl MemoryIndex {
         Ok(())
     }
 
+    /// Search for the top-`limit` vectors most similar to `query` by cosine similarity.
     pub async fn search(
         &self,
         query: &[f32],
         limit: usize,
     ) -> Result<Vec<(MemoryId, f32)>, VectorError> {
-        let map = self.vectors.lock().unwrap();
+        let map = self.vectors.lock().await;
         let mut scored: Vec<(Uuid, f32)> = map
             .iter()
             .map(|(id, vec)| (*id, cosine_similarity(query, vec)))
@@ -71,8 +80,9 @@ impl MemoryIndex {
         Ok(results)
     }
 
+    /// Delete a vector by its `MemoryId`.
     pub async fn delete(&self, id: MemoryId) -> Result<(), VectorError> {
-        let mut map = self.vectors.lock().unwrap();
+        let mut map = self.vectors.lock().await;
         map.remove(id.as_uuid());
         Ok(())
     }
@@ -105,12 +115,13 @@ impl VectorIndex for MemoryIndex {
         let hits = results
             .into_iter()
             .map(|(id, score)| {
-                serde_json::from_value(serde_json::json!({
+                let hit_val = serde_json::json!({
                     "id": id.to_string(),
                     "score": score,
                     "metadata": null,
-                }))
-                .unwrap()
+                });
+                serde_json::from_value(hit_val)
+                    .unwrap_or_else(|_| VectorHit::new(id.to_string(), score, serde_json::Value::Null))
             })
             .collect();
         Ok(hits)
