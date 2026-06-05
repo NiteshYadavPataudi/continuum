@@ -307,6 +307,7 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
         if num > 0 && num <= models.len() {
             let model_id = models[num - 1].0.trim_start_matches(&prefix);
             session.model = model_id.to_string();
+            persist_model_selection(session);
             println!("  ✓ Switched to: {model_id}");
         } else {
             println!("  Invalid selection. Use /models to see available options.");
@@ -318,6 +319,7 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
             if parts.len() == 2 {
                 session.provider = parts[0].to_string();
                 session.model = parts[1].to_string();
+                persist_model_selection(session);
                 println!("  ✓ Switched to: {args}");
             }
         } else {
@@ -328,11 +330,21 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
         let full_id = format!("{}{}", prefix, args);
         if MODELS.get(full_id.as_str()).is_some() {
             session.model = args.to_string();
+            persist_model_selection(session);
             println!("  ✓ Switched to: {args}");
         } else {
             println!("  Model not found: {args}");
             println!("  Use /models to see available options.");
         }
+    }
+}
+
+fn persist_model_selection(session: &mut ReplSession) {
+    session
+        .config
+        .set_preferred_model(&session.provider, &session.model);
+    if session.config.save().is_err() {
+        println!("  ⚠ Warning: could not save preferred model to config");
     }
 }
 

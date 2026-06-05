@@ -19,6 +19,9 @@ pub struct Config {
     /// Per-provider configuration (API keys, base URL overrides).
     #[serde(default)]
     pub providers: HashMap<String, ProviderConfig>,
+    /// Session-level UI preferences such as the last selected provider/model.
+    #[serde(default)]
+    pub session: SessionConfig,
 }
 
 /// Per-provider settings stored in the config file.
@@ -28,6 +31,15 @@ pub struct ProviderConfig {
     pub api_key: Option<String>,
     /// Override the provider's default base URL (useful for proxies or local deployments).
     pub base_url: Option<String>,
+}
+
+/// Session-level UI preferences.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionConfig {
+    /// Preferred provider to start with.
+    pub preferred_provider: Option<String>,
+    /// Preferred model to start with for the preferred provider.
+    pub preferred_model: Option<String>,
 }
 
 impl Config {
@@ -138,6 +150,26 @@ impl Config {
             }
         }
     }
+
+    /// Remember the last selected provider/model pair.
+    pub fn set_preferred_model(&mut self, provider: &str, model: &str) {
+        self.session.preferred_provider = Some(provider.to_string());
+        self.session.preferred_model = Some(model.to_string());
+    }
+
+    /// Return the stored preferred provider/model pair, if any.
+    pub fn preferred_model(&self) -> Option<(&str, &str)> {
+        Some((
+            self.session.preferred_provider.as_deref()?,
+            self.session.preferred_model.as_deref()?,
+        ))
+    }
+
+    /// Clear stored provider/model preferences.
+    pub fn clear_preferred_model(&mut self) {
+        self.session.preferred_provider = None;
+        self.session.preferred_model = None;
+    }
 }
 
 /// Filesystem path for the user-level config file (`~/.continuum/config.toml`).
@@ -236,6 +268,19 @@ mod tests {
         assert_eq!(cfg.api_key("anthropic", ""), Some("sk-ant-1".to_string()));
         assert_eq!(cfg.api_key("openai", ""), Some("sk-openai-1".to_string()));
         assert_eq!(cfg.api_key("gemini", ""), Some("gemini-key-1".to_string()));
+    }
+
+    #[test]
+    fn test_preferred_model_roundtrip() {
+        let mut cfg = Config::default();
+        cfg.set_preferred_model("openrouter", "anthropic/claude-sonnet-4-20250514");
+        assert_eq!(
+            cfg.preferred_model(),
+            Some(("openrouter", "anthropic/claude-sonnet-4-20250514"))
+        );
+
+        cfg.clear_preferred_model();
+        assert_eq!(cfg.preferred_model(), None);
     }
 }
 

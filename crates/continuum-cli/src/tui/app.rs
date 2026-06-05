@@ -432,11 +432,15 @@ impl TuiApp {
         models.sort_by(|a, b| a.model_id.cmp(&b.model_id));
 
         let filtered_indices: Vec<usize> = (0..models.len()).collect();
+        let selected_index = filtered_indices
+            .iter()
+            .position(|&i| models.get(i).is_some_and(|model| model.is_current))
+            .unwrap_or(0);
 
         self.model_selector = ModelSelector {
             models,
             filtered_indices,
-            selected_index: 0,
+            selected_index,
             search_query: String::new(),
             search_active: false,
         };
@@ -477,6 +481,14 @@ impl TuiApp {
             let model_id = model.model_id.clone();
             self.session.provider = provider.clone();
             self.session.model = model_id.clone();
+            self.session
+                .config
+                .set_preferred_model(&provider, &model_id);
+            if let Err(err) = self.session.config.save() {
+                self.add_system_message(&format!(
+                    "Could not save preferred model to config: {err}"
+                ));
+            }
             self.add_system_message(&format!("Switched to {provider}/{model_id}"));
         }
     }

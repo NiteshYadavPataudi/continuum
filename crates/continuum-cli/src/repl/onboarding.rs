@@ -42,6 +42,7 @@ pub async fn run_onboarding(session: &mut ReplSession) -> Result<(), Box<dyn std
             session.model = default_model.to_string();
             let mut cfg = session.config.clone();
             cfg.set_api_key(&provider, &key);
+            cfg.set_preferred_model(&provider, &default_model);
             if cfg.save().is_err() {
                 println!("  ⚠ Warning: could not save configuration to disk");
             }
@@ -242,6 +243,11 @@ pub async fn run_onboarding(session: &mut ReplSession) -> Result<(), Box<dyn std
         };
 
         session.model = selected_model;
+        let mut cfg = session.config.clone();
+        cfg.set_preferred_model(&session.provider, &session.model);
+        if cfg.save().is_err() {
+            println!("  ⚠ Warning: could not save model preference to disk");
+        }
     }
 
     // Step 5: Save and confirm

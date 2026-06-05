@@ -7,7 +7,7 @@ pub mod commands;
 pub mod onboarding;
 
 use continuum_config::Config;
-use continuum_models_registry::PROVIDERS;
+use continuum_models_registry::{MODELS, PROVIDERS};
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
@@ -101,6 +101,12 @@ impl ReplSession {
 
 /// Detect the default provider from env vars or config.
 pub fn detect_default_provider(config: &Config) -> (String, String) {
+    if let Some((provider, model)) = config.preferred_model() {
+        if provider_is_configured(config, provider) && model_is_available(provider, model) {
+            return (provider.to_string(), model.to_string());
+        }
+    }
+
     // Check common env vars in order of preference
     let env_checks = [
         (
@@ -141,6 +147,22 @@ pub fn detect_default_provider(config: &Config) -> (String, String) {
         "openrouter".to_string(),
         "anthropic/claude-sonnet-4-20250514".to_string(),
     )
+}
+
+fn provider_is_configured(config: &Config, provider: &str) -> bool {
+    if matches!(
+        provider,
+        "ollama" | "lmstudio" | "privatemode-ai" | "localhost"
+    ) {
+        return true;
+    }
+
+    let env_hint = PROVIDERS.get(provider).map(|p| p.env_var).unwrap_or("");
+    config.api_key(provider, env_hint).is_some()
+}
+
+fn model_is_available(provider: &str, model: &str) -> bool {
+    MODELS.get(format!("{provider}/{model}").as_str()).is_some()
 }
 
 /// Print the Continuum banner.
@@ -261,4 +283,21 @@ pub async fn run_repl(initial_prompt: Option<String>) -> Result<(), Box<dyn std:
     print_session_summary(&session);
     println!("  Session saved. Resume with `continuum -c`");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preferred_model_wins_when_configured() {
+        let mut cfg = Config::default();
+        cfg.set_api_key("openrouter", "sk-test");
+        cfg.set_preferred_model("openrouter", "anthropic/claude-sonnet-4-20250514");
+
+        let (provider, model) = detect_default_provider(&cfg);
+
+        assert_eq!(provider, "openrouter");
+        assert_eq!(model, "anthropic/claude-sonnet-4-20250514");
+    }
 }
