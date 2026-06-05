@@ -20,11 +20,43 @@ pub fn map_http_error(
     match status.as_u16() {
         401 | 403 => ModelError::AuthFailed(provider),
         429 => ModelError::RateLimited { provider },
+        404 => ModelError::ServerError {
+            provider,
+            status: status.as_u16(),
+            body,
+        },
         500..=599 => ModelError::ServerError {
             provider,
             status: status.as_u16(),
             body,
         },
         _ => ModelError::Other(format!("{provider} HTTP {status}: {body}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_404_to_server_error() {
+        let err = map_http_error(
+            ProviderId::new("openrouter"),
+            reqwest::StatusCode::NOT_FOUND,
+            "No endpoints found".to_string(),
+        );
+
+        match err {
+            ModelError::ServerError {
+                provider,
+                status,
+                body,
+            } => {
+                assert_eq!(provider.as_str(), "openrouter");
+                assert_eq!(status, 404);
+                assert!(body.contains("No endpoints found"));
+            }
+            other => panic!("unexpected error mapping: {other}"),
+        }
     }
 }

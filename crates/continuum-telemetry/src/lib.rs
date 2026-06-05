@@ -90,6 +90,12 @@ pub enum DashboardEvent {
     AssistantTurnCompleted { turn_id: u64 },
     /// A live assistant turn failed.
     AssistantTurnFailed { turn_id: u64, error: String },
+    /// A model selection was resolved or adjusted at runtime.
+    ModelResolved {
+        provider: String,
+        model: String,
+        note: Option<String>,
+    },
     /// The session goal changed.
     GoalUpdated { goal: Option<String> },
     /// Shutdown signal.
@@ -252,6 +258,27 @@ mod tests {
         match event {
             DashboardEvent::GoalUpdated { ref goal } => {
                 assert_eq!(goal.as_deref(), Some("ship the TUI"));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_dashboard_event_model_resolved() {
+        let event = DashboardEvent::ModelResolved {
+            provider: "openrouter".into(),
+            model: "deepseek/deepseek-v4-flash".into(),
+            note: Some("fallback applied".into()),
+        };
+        match event {
+            DashboardEvent::ModelResolved {
+                ref provider,
+                ref model,
+                ref note,
+            } => {
+                assert_eq!(provider, "openrouter");
+                assert_eq!(model, "deepseek/deepseek-v4-flash");
+                assert_eq!(note.as_deref(), Some("fallback applied"));
             }
             _ => panic!("wrong variant"),
         }

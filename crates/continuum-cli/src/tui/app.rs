@@ -648,6 +648,25 @@ impl TuiApp {
             DashboardEvent::AssistantTurnFailed { turn_id, error } => {
                 self.fail_assistant_turn(turn_id, &error);
             }
+            DashboardEvent::ModelResolved {
+                provider,
+                model,
+                note,
+            } => {
+                self.session.provider = provider.clone();
+                self.session.model = model.clone();
+                self.session.config.set_preferred_model(&provider, &model);
+                if let Err(err) = self.session.config.save() {
+                    self.add_system_message(&format!(
+                        "Could not save resolved model to config: {err}"
+                    ));
+                }
+                self.load_models();
+                self.add_system_message(&format!("Using model {provider}/{model}"));
+                if let Some(note) = note {
+                    self.add_system_message(&note);
+                }
+            }
             DashboardEvent::GoalUpdated { goal } => {
                 self.goal = goal.clone();
                 if let Some(goal) = goal {

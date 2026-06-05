@@ -347,6 +347,20 @@ impl DashboardApp {
                     message: format!("turn {turn_id} failed: {error}"),
                 });
             }
+            ModelResolved {
+                provider,
+                model,
+                note,
+            } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "assistant".into(),
+                    message: format!(
+                        "resolved model {provider}/{model}{}",
+                        note.map(|n| format!(" ({n})")).unwrap_or_default()
+                    ),
+                });
+            }
             GoalUpdated { goal } => {
                 self.log.lines.push(LogLine {
                     level: "INFO".into(),

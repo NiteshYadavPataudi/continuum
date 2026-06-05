@@ -83,9 +83,16 @@ pub fn spawn_streaming_assistant_turn(request: AssistantTurnRequest) {
                 .with_temperature(0.2)
                 .with_max_tokens(1200);
 
-        let mut stream = match provider
-            .complete(&Cap::grant(), request, cancel.child_token())
-            .await
+        let mut stream = match complete_with_openrouter_fallback(
+            &provider,
+            &provider_id,
+            &model_id,
+            request,
+            cancel.child_token(),
+            &event_tx,
+            turn_id,
+        )
+        .await
         {
             Ok(stream) => stream,
             Err(err) => {
@@ -125,4 +132,83 @@ pub fn spawn_streaming_assistant_turn(request: AssistantTurnRequest) {
 
         let _ = event_tx.send(DashboardEvent::AssistantTurnCompleted { turn_id });
     });
+}
+
+async fn complete_with_openrouter_fallback(
+    provider: &std::sync::Arc<dyn continuum_core::model::ModelProvider>,
+    provider_id: &str,
+    model_id: &str,
+    request: CompletionRequest,
+    cancel: CancellationToken,
+    event_tx: &broadcast::Sender<DashboardEvent>,
+    _turn_id: u64,
+) -> Result<continuum_core::model::CompletionStream, continuum_core::model::ModelError> {
+    match provider
+        .complete(&Cap::grant(), request.clone(), cancel.clone())
+        .await
+    {
+        Ok(stream) => Ok(stream),
+        Err(err) => {
+            if let Some(fallback_model) = openrouter_fallback_model(provider_id, model_id, &err) {
+                let note = format!(
+                    "OpenRouter had no endpoints for {model_id}; retrying with {fallback_model}"
+                );
+                let _ = event_tx.send(DashboardEvent::Log {
+                    level: "INFO".into(),
+                    target: "executor".into(),
+                    message: note.clone(),
+                });
+
+                let fallback_request = CompletionRequest::new(
+                    continuum_core::ids::ModelId::new(&fallback_model),
+                    request.messages.clone(),
+                )
+                .with_temperature(request.temperature.unwrap_or(0.2))
+                .with_max_tokens(request.max_tokens.unwrap_or(1200));
+
+                match provider
+                    .complete(&Cap::grant(), fallback_request, cancel)
+                    .await
+                {
+                    Ok(stream) => {
+                        let _ = event_tx.send(DashboardEvent::ModelResolved {
+                            provider: provider_id.to_string(),
+                            model: fallback_model,
+                            note: Some(note),
+                        });
+                        Ok(stream)
+                    }
+                    Err(err) => Err(err),
+                }
+            } else {
+                Err(err)
+            }
+        }
+    }
+}
+
+fn openrouter_fallback_model(
+    provider_id: &str,
+    model_id: &str,
+    err: &continuum_core::model::ModelError,
+) -> Option<String> {
+    if provider_id != "openrouter" || !model_id.ends_with(":free") {
+        return None;
+    }
+
+    let should_retry = match err {
+        continuum_core::model::ModelError::ServerError { status, body, .. } => {
+            *status == 404 && body.contains("No endpoints found")
+        }
+        continuum_core::model::ModelError::Other(message) => {
+            message.contains("404") && message.contains("No endpoints found")
+        }
+        _ => false,
+    };
+
+    if should_retry {
+        Some(model_id.trim_end_matches(":free").to_string())
+    } else {
+        None
+    }
 }
