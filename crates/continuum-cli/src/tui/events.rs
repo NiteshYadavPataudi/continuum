@@ -1,8 +1,9 @@
 //! Event handling for the TUI.
 
-use continuum_core::planner::Planner;
-use continuum_core::repo::RepoLoader;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+
+use crate::tui::chat::{spawn_streaming_assistant_turn, AssistantTurnRequest};
+use crate::tui::errors::startup_notice;
 
 use super::app::*;
 
@@ -39,8 +40,13 @@ pub fn handle_event(app: &mut TuiApp, event: Event) -> bool {
                 }
                 (KeyModifiers::CONTROL, KeyCode::Char('x')) => {
                     // Stop agent
+                    if let Some(cancel) = app.active_turn_cancel.as_ref() {
+                        cancel.cancel();
+                    }
                     app.status = AppStatus::Ready;
                     app.clear_current_step();
+                    app.active_turn_id = None;
+                    app.active_turn_cancel = None;
                     return false;
                 }
                 _ => {}
@@ -92,10 +98,12 @@ fn handle_composer_input(app: &mut TuiApp, key: event::KeyEvent) -> bool {
                         handle_slash_command(app, &input);
                     }
                 } else {
-                    // User message
-                    app.add_user_message(&input);
-                    // Simulate agent response
-                    simulate_agent_response(app, &input);
+                    if !send_chat_prompt(app, &input) {
+                        app.composer.input.clear();
+                        app.composer.cursor_pos = 0;
+                        app.refresh_slash_matches();
+                        return false;
+                    }
                 }
                 app.composer.input.clear();
                 app.composer.cursor_pos = 0;
@@ -211,8 +219,7 @@ fn handle_command_palette_input(app: &mut TuiApp, key: event::KeyEvent) -> bool 
                 if input.starts_with('/') {
                     handle_slash_command(app, &input);
                 } else {
-                    app.add_user_message(&input);
-                    simulate_agent_response(app, &input);
+                    let _ = send_chat_prompt(app, &input);
                 }
                 app.composer.input.clear();
                 app.composer.cursor_pos = 0;
@@ -299,6 +306,45 @@ fn handle_timeline_input(app: &mut TuiApp, key: event::KeyEvent) -> bool {
     }
 }
 
+fn send_chat_prompt(app: &mut TuiApp, input: &str) -> bool {
+    if app.status == AppStatus::Streaming {
+        app.add_system_message(
+            "Please wait for the current response to finish, or press Ctrl+X to stop it.",
+        );
+        return false;
+    }
+
+    app.add_user_message(input);
+    let turn_id = app.begin_assistant_turn(input);
+    let history = app.messages.clone();
+    let session = app.session.clone();
+    let goal = app.goal.clone();
+    let event_tx = app.event_tx.clone();
+    let cancel = app
+        .active_turn_cancel
+        .clone()
+        .unwrap_or_default();
+
+    if let Some(event_tx) = event_tx {
+        spawn_streaming_assistant_turn(AssistantTurnRequest {
+            turn_id,
+            prompt: input.to_string(),
+            goal,
+            history,
+            session,
+            cancel,
+            event_tx,
+        });
+    } else {
+        app.fail_assistant_turn(
+            turn_id,
+            "No event channel available for streaming assistant output.",
+        );
+    }
+
+    true
+}
+
 /// Handle input in the sidebar.
 fn handle_sidebar_input(app: &mut TuiApp, key: event::KeyEvent) -> bool {
     match key.code {
@@ -338,6 +384,7 @@ fn handle_sidebar_input(app: &mut TuiApp, key: event::KeyEvent) -> bool {
 fn handle_slash_command(app: &mut TuiApp, input: &str) {
     let parts: Vec<&str> = input[1..].splitn(2, ' ').collect();
     let cmd = parts[0];
+    let args = parts.get(1).map(|s| s.trim()).unwrap_or("");
 
     match cmd {
         "help" | "h" | "available" | "commands" | "command" | "avaliable" | "commnads"
@@ -348,17 +395,33 @@ fn handle_slash_command(app: &mut TuiApp, input: &str) {
             app.load_models();
             app.active_panel = ActivePanel::ModelSelector;
         }
+        "goal" | "g" => {
+            if args.is_empty() {
+                match &app.goal {
+                    Some(goal) => app.add_system_message(&format!("Current goal: {goal}")),
+                    None => app.add_system_message(
+                        "No goal is set yet. Use `/goal <text>` to define the session goal.",
+                    ),
+                }
+            } else {
+                app.set_goal(Some(args.to_string()));
+                app.add_system_message(&format!("Goal set: {args}"));
+            }
+        }
         "clear" | "cls" => {
             app.messages.clear();
             app.agent_activity.tasks.clear();
+            app.scroll_offset = 0;
+            app.add_system_message("Conversation cleared");
         }
         "status" | "s" => {
             let status = format!(
-                "Status: {} | Model: {}/{} | Tokens: {}",
+                "Status: {} | Model: {}/{} | Tokens: {} | Goal: {}",
                 app.status.label(),
                 app.session.provider,
                 app.session.model,
-                app.agent_activity.tokens_used
+                app.agent_activity.tokens_used,
+                app.goal.as_deref().unwrap_or("(none)")
             );
             app.add_system_message(&status);
         }
@@ -369,9 +432,11 @@ fn handle_slash_command(app: &mut TuiApp, input: &str) {
             );
             app.add_system_message(&cost);
         }
+        "config" | "cfg" => handle_config_command(app, args),
         "exit" | "quit" | "q" => {
             // Will be handled by the event loop
             app.add_system_message("Exiting...");
+            app.should_exit = true;
         }
         "diff" | "d" => {
             app.add_system_message("Diff view not yet implemented in TUI mode");
@@ -395,67 +460,141 @@ fn handle_slash_command(app: &mut TuiApp, input: &str) {
     app.refresh_slash_matches();
 }
 
-/// Spawn a real scheduler execution and stream events to the TUI.
-fn simulate_agent_response(app: &mut TuiApp, input: &str) {
-    app.status = AppStatus::Thinking;
-    app.add_task("Analyze repository");
-    app.add_task("Plan execution");
-    app.add_task("Execute agents");
-    app.set_current_step("Analyzing code structure");
-
-    // Use the app's own broadcast sender
-    let event_tx = match app.event_tx.clone() {
-        Some(tx) => tx,
-        None => {
-            app.add_assistant_message("No event channel available for live execution.");
-            app.status = AppStatus::Ready;
-            app.clear_current_step();
-            return;
-        }
-    };
-
-    let provider = app.session.provider.clone();
-    let config = app.session.config.clone();
-    let input_owned = input.to_string();
-    let input_msg = input_owned.clone();
-    let root = std::env::current_dir().unwrap_or_default();
-
-    tokio::spawn(async move {
-        let model_provider = continuum_models::load_from_config(&config, &provider);
-        let cancel = continuum_core::CancellationToken::new();
-        let scheduler = continuum_runtime::Scheduler::with_models(model_provider, None);
-        let session = continuum_runtime::Session::new().with_workspace_root(root.clone());
-
-        if let Ok(docs) = continuum_markdown::load(&root) {
-            let loader = continuum_repo::Loader::new(root.clone());
-            if let Ok(index) = loader
-                .build(
-                    &root,
-                    continuum_core::repo::IndexOptions {
-                        respect_gitignore: true,
-                        max_files: 10000,
-                    },
-                )
-                .await
-            {
-                let engine = continuum_planner::PlanningEngine::new(
-                    continuum_models::load_from_config(&config, &provider),
-                    continuum_core::ids::ModelId::new("default"),
-                );
-                let goal = continuum_core::planner::Goal::new(&input_owned);
-                if let Ok(analysis) = engine.analyze(index, &docs).await {
-                    if let Ok(plan) = engine.plan(goal, &analysis).await {
-                        let _ = scheduler
-                            .run_with_session_events(&plan, &session, cancel, Some(event_tx))
-                            .await;
-                    }
-                }
+fn handle_config_command(app: &mut TuiApp, args: &str) {
+    let mut parts = args.split_whitespace();
+    match parts.next() {
+        None | Some("list") => {
+            let config_path = continuum_config::config_path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "(unavailable)".to_string());
+            app.add_system_message(&format!("Config file: {config_path}"));
+            app.add_system_message(&format!(
+                "Current provider: {}/{}",
+                app.session.provider, app.session.model
+            ));
+            if let Some(hint) = startup_notice(&app.session.provider, &app.session.config) {
+                app.add_system_message(&hint);
+            } else {
+                app.add_system_message("Current provider has a configured API key.");
             }
         }
-    });
+        Some("providers") => {
+            let mut providers: Vec<_> = continuum_models_registry::PROVIDERS.entries().collect();
+            providers.sort_by_key(|(k, _)| *k);
+            for (pid, meta) in providers {
+                let status = if meta.env_var.is_empty()
+                    || app.session.config.api_key(pid, meta.env_var).is_some()
+                {
+                    "configured".to_string()
+                } else {
+                    startup_notice(pid, &app.session.config)
+                        .unwrap_or_else(|| "missing API key".to_string())
+                };
+                app.add_system_message(&format!("{pid}: {} ({status})", meta.name));
+            }
+        }
+        Some("set") => {
+            let key = parts.next().unwrap_or("");
+            let value = parts.collect::<Vec<_>>().join(" ");
+            if key.is_empty() || value.is_empty() {
+                app.add_system_message("Usage: /config set <provider>.<field> <value>");
+                return;
+            }
+            match set_config_value(app, key, &value) {
+                Ok(message) => app.add_system_message(&message),
+                Err(message) => app.add_system_message(&message),
+            }
+        }
+        Some("get") => {
+            let key = parts.next().unwrap_or("");
+            if key.is_empty() {
+                app.add_system_message("Usage: /config get <provider>.<field>");
+                return;
+            }
+            match get_config_value(&app.session.config, key) {
+                Ok(message) => app.add_system_message(&message),
+                Err(message) => app.add_system_message(&message),
+            }
+        }
+        Some("unset") => {
+            let key = parts.next().unwrap_or("");
+            if key.is_empty() {
+                app.add_system_message("Usage: /config unset <provider>.<field>");
+                return;
+            }
+            match unset_config_value(app, key) {
+                Ok(message) => app.add_system_message(&message),
+                Err(message) => app.add_system_message(&message),
+            }
+        }
+        Some(other) => {
+            app.add_system_message(&format!("Unknown /config subcommand: {other}"));
+        }
+    }
+}
 
-    let msg = format!("Executing: {}\n\n[Live execution started]", input_msg);
-    app.add_assistant_message(&msg);
-    app.status = AppStatus::RunningCommand;
-    app.clear_current_step();
+fn parse_config_key(key: &str) -> Result<(&str, &str), String> {
+    let dot = key
+        .find('.')
+        .ok_or_else(|| format!("invalid key '{key}': expected <provider>.<field>"))?;
+    Ok((&key[..dot], &key[dot + 1..]))
+}
+
+fn set_config_value(app: &mut TuiApp, key: &str, value: &str) -> Result<String, String> {
+    let (provider, field) = parse_config_key(key)?;
+    let mut cfg = app.session.config.clone();
+    match field {
+        "api_key" => cfg.set_api_key(provider, value),
+        "base_url" => cfg.set_base_url(provider, value),
+        other => {
+            return Err(format!(
+                "unknown config field '{other}'. Valid fields: api_key, base_url"
+            ))
+        }
+    }
+    cfg.save()
+        .map_err(|e| format!("failed to save config: {e}"))?;
+    app.session.config = cfg;
+    Ok(format!("✓ Set {provider}.{field}"))
+}
+
+fn get_config_value(cfg: &continuum_config::Config, key: &str) -> Result<String, String> {
+    let (provider, field) = parse_config_key(key)?;
+    let value = match field {
+        "api_key" => {
+            let env_hint = continuum_models_registry::PROVIDERS
+                .get(provider)
+                .map(|p| p.env_var)
+                .unwrap_or("");
+            cfg.api_key(provider, env_hint)
+        }
+        "base_url" => cfg.base_url(provider).or_else(|| {
+            continuum_models_registry::PROVIDERS
+                .get(provider)
+                .map(|p| p.api_base_url.to_string())
+        }),
+        other => return Err(format!("unknown field '{other}'. Valid: api_key, base_url")),
+    };
+
+    Ok(match value {
+        Some(v) => {
+            let display = if field == "api_key" {
+                crate::output::mask_key(&v)
+            } else {
+                v
+            };
+            format!("{provider}.{field} = {display}")
+        }
+        None => format!("{provider}.{field} = (not set)"),
+    })
+}
+
+fn unset_config_value(app: &mut TuiApp, key: &str) -> Result<String, String> {
+    let (provider, field) = parse_config_key(key)?;
+    let mut cfg = app.session.config.clone();
+    cfg.unset(provider, field);
+    cfg.save()
+        .map_err(|e| format!("failed to save config: {e}"))?;
+    app.session.config = cfg;
+    Ok(format!("✓ Unset {provider}.{field}"))
 }

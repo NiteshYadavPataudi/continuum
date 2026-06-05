@@ -164,7 +164,10 @@ async fn main() {
                         "status": "queued",
                         "message": "Full execution pipeline will be wired with the execution engine"
                     });
-                    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+                    match serde_json::to_string_pretty(&result) {
+                        Ok(text) => println!("{text}"),
+                        Err(e) => eprintln!("  ❌ Failed to format JSON output: {e}"),
+                    }
                     Ok(())
                 } else {
                     // Start REPL with initial prompt

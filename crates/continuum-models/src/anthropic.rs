@@ -6,6 +6,7 @@ use continuum_core::{
     CancellationToken,
 };
 use futures::StreamExt;
+use std::time::Duration;
 
 /// Anthropic model provider using the Messages API.
 pub struct AnthropicProvider {
@@ -87,9 +88,10 @@ impl ModelProvider for AnthropicProvider {
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
@@ -125,9 +127,10 @@ impl ModelProvider for AnthropicProvider {
                 "model": req.model.as_str(),
                 "input": req.inputs,
             }))
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
@@ -208,12 +211,6 @@ async fn handle_error_response(
     status: reqwest::StatusCode,
 ) -> ModelError {
     let provider = ProviderId::new(continuum_models_registry::ANTHROPIC);
-    match status.as_u16() {
-        429 => ModelError::RateLimited { provider },
-        401 => ModelError::AuthFailed(provider),
-        _ => {
-            let body = response.text().await.unwrap_or_default();
-            ModelError::Other(format!("HTTP {}: {}", status, body))
-        }
-    }
+    let body = response.text().await.unwrap_or_default();
+    crate::map_http_error(provider, status, body)
 }

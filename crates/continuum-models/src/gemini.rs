@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::time::Duration;
 
 use continuum_core::{
     caps::{CallModels, Cap, ReadSecrets},
@@ -109,9 +110,10 @@ impl ModelProvider for GeminiProvider {
             .header("Content-Type", "application/json")
             .header("x-goog-api-key", &self.api_key)
             .json(&body)
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
@@ -157,9 +159,10 @@ impl ModelProvider for GeminiProvider {
                     "content": { "parts": [{ "text": text }] }
                 })).collect::<Vec<_>>(),
             }))
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {

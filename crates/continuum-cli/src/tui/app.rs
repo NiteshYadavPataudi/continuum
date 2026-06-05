@@ -8,6 +8,7 @@
 use ratatui::style::Style;
 use tokio::sync::broadcast;
 
+use continuum_core::CancellationToken;
 use continuum_telemetry::DashboardEvent;
 
 use super::commands::{
@@ -32,6 +33,7 @@ pub struct TuiApp {
     pub theme: Theme,
     pub active_panel: ActivePanel,
     pub session: ReplSession,
+    pub goal: Option<String>,
     pub messages: Vec<ChatMessage>,
     pub agent_activity: AgentActivity,
     pub model_selector: ModelSelector,
@@ -51,6 +53,10 @@ pub struct TuiApp {
     /// Model/provider error state
     pub model_error: Option<String>,
     pub provider_configured: bool,
+    /// Active assistant turn being streamed, if any.
+    pub active_turn_id: Option<u64>,
+    pub active_turn_cancel: Option<CancellationToken>,
+    pub next_turn_id: u64,
     /// Validation summary tracking
     pub validation_passed: usize,
     pub validation_failed: usize,
@@ -60,6 +66,7 @@ pub struct TuiApp {
 /// A message in the conversation.
 #[derive(Debug, Clone)]
 pub struct ChatMessage {
+    pub id: Option<u64>,
     pub role: MessageRole,
     pub content: String,
     pub timestamp: String,
@@ -178,6 +185,7 @@ pub struct ComposerState {
 pub enum AppStatus {
     Ready,
     Thinking,
+    Streaming,
     RunningCommand,
     WaitingApproval,
 }
@@ -187,6 +195,7 @@ impl AppStatus {
         match self {
             Self::Ready => "Ready",
             Self::Thinking => "Thinking...",
+            Self::Streaming => "Streaming...",
             Self::RunningCommand => "Running...",
             Self::WaitingApproval => "Waiting approval",
         }
@@ -196,6 +205,7 @@ impl AppStatus {
         match self {
             Self::Ready => theme.status_ready_style(),
             Self::Thinking => theme.status_running_style(),
+            Self::Streaming => theme.status_running_style(),
             Self::RunningCommand => theme.status_running_style(),
             Self::WaitingApproval => theme.status_waiting_style(),
         }
@@ -210,6 +220,7 @@ impl TuiApp {
             theme: Theme::default(),
             active_panel: ActivePanel::Composer,
             session,
+            goal: None,
             messages: Vec::new(),
             agent_activity: AgentActivity {
                 tasks: Vec::new(),
@@ -243,6 +254,9 @@ impl TuiApp {
             total_tokens_out: 0,
             model_error: None,
             provider_configured: false,
+            active_turn_id: None,
+            active_turn_cancel: None,
+            next_turn_id: 1,
             validation_passed: 0,
             validation_failed: 0,
             validation_total: 0,
@@ -252,6 +266,7 @@ impl TuiApp {
     /// Add a user message.
     pub fn add_user_message(&mut self, content: &str) {
         self.messages.push(ChatMessage {
+            id: None,
             role: MessageRole::User,
             content: content.to_string(),
             timestamp: current_time(),
@@ -261,7 +276,13 @@ impl TuiApp {
 
     /// Add an assistant message.
     pub fn add_assistant_message(&mut self, content: &str) {
+        self.add_assistant_message_with_id(None, content);
+    }
+
+    /// Add an assistant message associated with a streaming turn.
+    pub fn add_assistant_message_with_id(&mut self, id: Option<u64>, content: &str) {
         self.messages.push(ChatMessage {
+            id,
             role: MessageRole::Assistant,
             content: content.to_string(),
             timestamp: current_time(),
@@ -272,6 +293,7 @@ impl TuiApp {
     /// Add a system message.
     pub fn add_system_message(&mut self, content: &str) {
         self.messages.push(ChatMessage {
+            id: None,
             role: MessageRole::System,
             content: content.to_string(),
             timestamp: current_time(),
@@ -329,6 +351,58 @@ impl TuiApp {
     /// Clear the current step.
     pub fn clear_current_step(&mut self) {
         self.agent_activity.current_step = None;
+    }
+
+    /// Update the current session goal.
+    pub fn set_goal(&mut self, goal: Option<String>) {
+        self.goal = goal;
+    }
+
+    /// Start a new streaming assistant turn and return its ID.
+    pub fn begin_assistant_turn(&mut self, _prompt: &str) -> u64 {
+        let turn_id = self.next_turn_id;
+        self.next_turn_id = self.next_turn_id.saturating_add(1);
+        self.active_turn_cancel = Some(CancellationToken::new());
+        self.active_turn_id = Some(turn_id);
+        self.status = AppStatus::Streaming;
+        self.set_current_step("Streaming assistant response");
+        turn_id
+    }
+
+    /// Append a streaming delta to the active assistant turn.
+    pub fn append_assistant_delta(&mut self, turn_id: u64, delta: &str) {
+        if let Some(message) = self
+            .messages
+            .iter_mut()
+            .rev()
+            .find(|msg| msg.id == Some(turn_id) && matches!(msg.role, MessageRole::Assistant))
+        {
+            message.content.push_str(delta);
+            return;
+        }
+
+        self.add_assistant_message_with_id(Some(turn_id), delta);
+    }
+
+    /// Finish a streaming assistant turn.
+    pub fn finish_assistant_turn(&mut self, turn_id: u64) {
+        if self.active_turn_id == Some(turn_id) {
+            self.active_turn_id = None;
+            self.active_turn_cancel = None;
+            self.status = AppStatus::Ready;
+            self.clear_current_step();
+        }
+    }
+
+    /// Fail a streaming assistant turn.
+    pub fn fail_assistant_turn(&mut self, turn_id: u64, error: &str) {
+        if self.active_turn_id == Some(turn_id) {
+            self.active_turn_id = None;
+            self.active_turn_cancel = None;
+            self.status = AppStatus::Ready;
+            self.clear_current_step();
+        }
+        self.add_system_message(&format!("assistant turn {turn_id} failed: {error}"));
     }
 
     /// Load models for the model selector.
@@ -544,6 +618,30 @@ impl TuiApp {
                     });
                 }
             }
+            DashboardEvent::AssistantTurnStarted {
+                turn_id,
+                prompt: _prompt,
+            } => {
+                self.active_turn_id = Some(turn_id);
+                self.status = AppStatus::Streaming;
+                self.set_current_step("Streaming assistant response");
+                self.add_assistant_message_with_id(Some(turn_id), "");
+            }
+            DashboardEvent::AssistantTurnDelta { turn_id, delta } => {
+                self.append_assistant_delta(turn_id, &delta);
+            }
+            DashboardEvent::AssistantTurnCompleted { turn_id } => {
+                self.finish_assistant_turn(turn_id);
+            }
+            DashboardEvent::AssistantTurnFailed { turn_id, error } => {
+                self.fail_assistant_turn(turn_id, &error);
+            }
+            DashboardEvent::GoalUpdated { goal } => {
+                self.goal = goal.clone();
+                if let Some(goal) = goal {
+                    self.add_system_message(&format!("Goal updated: {goal}"));
+                }
+            }
             DashboardEvent::TaskQueued {
                 task_id,
                 agent,
@@ -705,6 +803,7 @@ impl TuiApp {
             }
             DashboardEvent::Shutdown => {
                 self.status = AppStatus::Ready;
+                self.clear_current_step();
                 self.should_exit = true;
             }
         }

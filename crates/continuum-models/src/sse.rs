@@ -25,9 +25,13 @@ pub fn parse_sse(
                                 dispatch(&data, &tx);
                             }
                             break;
-                        }
-                        Some(Err(e)) => {
-                            let _ = tx.send(Err(ModelError::Network(e.to_string())));
+                    }
+                    Some(Err(e)) => {
+                            let _ = tx.send(Err(if e.is_timeout() {
+                                ModelError::Timeout
+                            } else {
+                                ModelError::Network(e.to_string())
+                            }));
                             break;
                         }
                         Some(Ok(bytes)) => {

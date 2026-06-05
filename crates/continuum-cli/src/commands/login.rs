@@ -55,9 +55,10 @@ pub async fn run() -> CmdResult {
         return Ok(());
     };
 
-    let meta = PROVIDERS
-        .get(&selected)
-        .expect("provider must exist after selection");
+    let Some(meta) = PROVIDERS.get(&selected) else {
+        println!("  Provider metadata disappeared for: {selected}");
+        return Ok(());
+    };
 
     println!();
     println!("  Provider: {} ({})", meta.name, selected);

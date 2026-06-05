@@ -28,6 +28,11 @@ pub const SLASH_COMMANDS: &[SlashCommand] = &[
         description: "Switch AI model",
     },
     SlashCommand {
+        name: "goal",
+        aliases: &["g"],
+        description: "Set or view the session goal",
+    },
+    SlashCommand {
         name: "models",
         aliases: &["ms"],
         description: "List available models",
@@ -209,4 +214,34 @@ pub fn command_help_lines() -> Vec<(&'static str, &'static str)> {
         .iter()
         .map(|cmd| (cmd.name, cmd.description))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_command_input_parses_goal_text() {
+        let (cmd, rest) = split_command_input("/goal build a better tui");
+        assert_eq!(cmd, "goal");
+        assert_eq!(rest, "build a better tui");
+    }
+
+    #[test]
+    fn resolve_slash_command_supports_goal_and_config() {
+        assert_eq!(resolve_slash_command("goal").map(|c| c.name), Some("goal"));
+        assert_eq!(
+            resolve_slash_command("config").map(|c| c.name),
+            Some("config")
+        );
+    }
+
+    #[test]
+    fn filter_slash_commands_finds_short_prefixes() {
+        let names: Vec<_> = filter_slash_commands("go")
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        assert!(names.contains(&"goal"));
+    }
 }

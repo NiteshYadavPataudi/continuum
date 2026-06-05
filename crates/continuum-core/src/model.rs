@@ -243,6 +243,19 @@ pub enum ModelError {
     /// Network error.
     #[error("network error: {0}")]
     Network(String),
+    /// The request timed out.
+    #[error("timeout")]
+    Timeout,
+    /// The provider returned a server-side error.
+    #[error("server error {status} from {provider}")]
+    ServerError {
+        /// Provider that returned the error.
+        provider: ProviderId,
+        /// HTTP status code.
+        status: u16,
+        /// Response body or summary.
+        body: String,
+    },
     /// The call was cancelled before completion.
     #[error("cancelled")]
     Cancelled,
