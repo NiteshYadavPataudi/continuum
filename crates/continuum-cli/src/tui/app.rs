@@ -15,7 +15,7 @@ use super::commands::{
     filter_slash_commands, resolve_slash_command, split_command_input, SlashCommand,
 };
 use super::theme::Theme;
-use crate::repl::ReplSession;
+use crate::repl::{normalize_model_for_provider, ReplSession};
 
 /// Active panel for keyboard navigation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,6 +164,7 @@ pub struct ModelSelector {
 pub struct ModelEntry {
     pub provider: String,
     pub model_id: String,
+    pub request_model_id: String,
     pub name: String,
     pub context_window: u64,
     pub input_price: f64,
@@ -410,21 +411,27 @@ impl TuiApp {
         use continuum_models_registry::MODELS;
 
         let current_provider = &self.session.provider;
-        let current_model = &self.session.model;
+        let current_model = normalize_model_for_provider(current_provider, &self.session.model);
 
         let mut models: Vec<ModelEntry> = MODELS
             .entries()
             .filter(|(k, _)| k.starts_with(&format!("{}/", current_provider)))
             .map(|(k, m)| {
                 let model_id = k.trim_start_matches(&format!("{}/", current_provider));
+                let request_model_id = if current_provider == "openrouter" {
+                    k.to_string()
+                } else {
+                    model_id.to_string()
+                };
                 ModelEntry {
                     provider: current_provider.clone(),
                     model_id: model_id.to_string(),
+                    request_model_id: request_model_id.clone(),
                     name: m.name.to_string(),
                     context_window: m.context_window,
                     input_price: m.input_per_mtok,
                     output_price: m.output_per_mtok,
-                    is_current: model_id == current_model,
+                    is_current: request_model_id == current_model || model_id == current_model,
                 }
             })
             .collect();
@@ -478,7 +485,7 @@ impl TuiApp {
     pub fn switch_model(&mut self) {
         if let Some(model) = self.selected_model().cloned() {
             let provider = model.provider.clone();
-            let model_id = model.model_id.clone();
+            let model_id = model.request_model_id.clone();
             self.session.provider = provider.clone();
             self.session.model = model_id.clone();
             self.session

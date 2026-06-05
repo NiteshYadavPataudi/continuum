@@ -4,7 +4,7 @@ use continuum_core::planner::Planner;
 use continuum_core::repo::RepoLoader;
 use continuum_models_registry::{MODELS, PROVIDERS};
 
-use super::{EffortLevel, ReplSession};
+use super::{normalize_model_for_provider, EffortLevel, ReplSession};
 
 /// Handle a slash command. Returns true if the REPL should exit.
 pub async fn handle_slash_command(session: &mut ReplSession, input: &str) -> bool {
@@ -306,7 +306,7 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
         // Select by number
         if num > 0 && num <= models.len() {
             let model_id = models[num - 1].0.trim_start_matches(&prefix);
-            session.model = model_id.to_string();
+            session.model = normalize_model_for_provider(&session.provider, model_id);
             persist_model_selection(session);
             println!("  ✓ Switched to: {model_id}");
         } else {
@@ -318,7 +318,7 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
             let parts: Vec<&str> = args.splitn(2, '/').collect();
             if parts.len() == 2 {
                 session.provider = parts[0].to_string();
-                session.model = parts[1].to_string();
+                session.model = normalize_model_for_provider(&session.provider, parts[1]);
                 persist_model_selection(session);
                 println!("  ✓ Switched to: {args}");
             }
@@ -329,7 +329,7 @@ fn cmd_model_switch(session: &mut ReplSession, args: &str) {
         // Model name only (for current provider)
         let full_id = format!("{}{}", prefix, args);
         if MODELS.get(full_id.as_str()).is_some() {
-            session.model = args.to_string();
+            session.model = normalize_model_for_provider(&session.provider, args);
             persist_model_selection(session);
             println!("  ✓ Switched to: {args}");
         } else {

@@ -102,8 +102,9 @@ impl ReplSession {
 /// Detect the default provider from env vars or config.
 pub fn detect_default_provider(config: &Config) -> (String, String) {
     if let Some((provider, model)) = config.preferred_model() {
-        if provider_is_configured(config, provider) && model_is_available(provider, model) {
-            return (provider.to_string(), model.to_string());
+        let model = normalize_model_for_provider(provider, model);
+        if provider_is_configured(config, provider) && model_is_available(provider, &model) {
+            return (provider.to_string(), model);
         }
     }
 
@@ -162,7 +163,19 @@ fn provider_is_configured(config: &Config, provider: &str) -> bool {
 }
 
 fn model_is_available(provider: &str, model: &str) -> bool {
-    MODELS.get(format!("{provider}/{model}").as_str()).is_some()
+    if model.contains('/') {
+        MODELS.get(model).is_some()
+    } else {
+        MODELS.get(format!("{provider}/{model}").as_str()).is_some()
+    }
+}
+
+pub(crate) fn normalize_model_for_provider(provider: &str, model: &str) -> String {
+    if provider != "openrouter" || model.contains('/') {
+        return model.to_string();
+    }
+
+    format!("{provider}/{model}")
 }
 
 /// Print the Continuum banner.
@@ -299,5 +312,13 @@ mod tests {
 
         assert_eq!(provider, "openrouter");
         assert_eq!(model, "anthropic/claude-sonnet-4-20250514");
+    }
+
+    #[test]
+    fn normalize_openrouter_model_prefixes_plain_route_names() {
+        assert_eq!(
+            normalize_model_for_provider("openrouter", "owl-alpha"),
+            "openrouter/owl-alpha"
+        );
     }
 }
