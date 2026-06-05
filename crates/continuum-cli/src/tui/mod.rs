@@ -12,7 +12,9 @@
 //! - Model selector with search
 
 pub mod app;
+pub mod chat;
 pub mod commands;
+pub mod errors;
 pub mod events;
 pub mod render;
 pub mod theme;
@@ -30,6 +32,7 @@ use tokio::sync::broadcast;
 
 use crate::repl::ReplSession;
 use app::TuiApp;
+use errors::startup_notice;
 
 /// Run the full-screen TUI.
 pub fn run_tui(session: ReplSession) -> Result<(), Box<dyn std::error::Error>> {
@@ -62,6 +65,11 @@ pub fn run_tui_with_events(
     // Create app
     let mut app = TuiApp::new(session);
     app.load_models();
+    let startup_notice = startup_notice(&app.session.provider, &app.session.config);
+    app.provider_configured = startup_notice.is_none();
+    if let Some(message) = startup_notice {
+        app.add_system_message(&message);
+    }
     if let Some(rx) = event_rx {
         app = app.with_event_stream(rx);
     }

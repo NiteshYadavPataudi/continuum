@@ -49,6 +49,7 @@ impl Default for EffortLevel {
 }
 
 /// Session state for the REPL.
+#[derive(Debug, Clone)]
 pub struct ReplSession {
     pub config: Config,
     pub effort: EffortLevel,

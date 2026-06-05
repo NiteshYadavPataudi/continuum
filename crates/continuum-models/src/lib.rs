@@ -10,6 +10,7 @@
 mod anthropic;
 mod compat;
 mod cost;
+mod error;
 #[cfg(feature = "gemini")]
 mod gemini;
 #[cfg(feature = "ollama")]
@@ -22,6 +23,7 @@ mod sse;
 #[cfg(feature = "anthropic")]
 pub use anthropic::AnthropicProvider;
 pub use compat::CompatProvider;
+pub use error::{map_http_error, map_reqwest_error};
 #[cfg(feature = "gemini")]
 pub use gemini::GeminiProvider;
 #[cfg(feature = "ollama")]

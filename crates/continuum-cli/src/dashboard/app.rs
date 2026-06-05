@@ -319,6 +319,41 @@ impl DashboardApp {
                     message,
                 });
             }
+            AssistantTurnStarted { turn_id, prompt } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "assistant".into(),
+                    message: format!("turn {turn_id} started: {prompt}"),
+                });
+            }
+            AssistantTurnDelta { turn_id, delta } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "assistant".into(),
+                    message: format!("turn {turn_id} delta: {delta}"),
+                });
+            }
+            AssistantTurnCompleted { turn_id } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "assistant".into(),
+                    message: format!("turn {turn_id} completed"),
+                });
+            }
+            AssistantTurnFailed { turn_id, error } => {
+                self.log.lines.push(LogLine {
+                    level: "ERROR".into(),
+                    target: "assistant".into(),
+                    message: format!("turn {turn_id} failed: {error}"),
+                });
+            }
+            GoalUpdated { goal } => {
+                self.log.lines.push(LogLine {
+                    level: "INFO".into(),
+                    target: "session".into(),
+                    message: format!("goal updated: {}", goal.unwrap_or_else(|| "(none)".into())),
+                });
+            }
             Shutdown => {
                 self.log.lines.push(LogLine {
                     level: "INFO".into(),

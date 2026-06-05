@@ -112,6 +112,12 @@ fn render_header(frame: &mut Frame, app: &TuiApp, area: Rect) {
         "no-key"
     };
 
+    let goal_label = app
+        .goal
+        .as_deref()
+        .map(|g| format!("goal: {}", crate::output::truncate_str(g, 28)))
+        .unwrap_or_else(|| "goal: none".to_string());
+
     // Validation summary
     let val_str = if app.validation_total > 0 {
         format!(
@@ -147,6 +153,8 @@ fn render_header(frame: &mut Frame, app: &TuiApp, area: Rect) {
         Span::styled(&git_branch, Style::default().fg(theme.warning)),
         Span::raw("  |  "),
         Span::styled(mode, Style::default().fg(theme.info)),
+        Span::raw("  |  "),
+        Span::styled(goal_label, Style::default().fg(theme.accent_dim)),
     ];
 
     if !cost_str.is_empty() {
@@ -379,6 +387,7 @@ fn render_agent_summary(frame: &mut Frame, app: &TuiApp, area: Rect) {
     let status_icon = match app.status {
         AppStatus::Ready => "*",
         AppStatus::Thinking => ">",
+        AppStatus::Streaming => "~",
         AppStatus::RunningCommand => ">",
         AppStatus::WaitingApproval => "?",
     };
@@ -395,6 +404,16 @@ fn render_agent_summary(frame: &mut Frame, app: &TuiApp, area: Rect) {
             Span::styled("  Task: ", Style::default().fg(theme.muted)),
             Span::styled(
                 crate::output::truncate_str(step, 24),
+                Style::default().fg(theme.fg),
+            ),
+        ]));
+    }
+
+    if let Some(goal) = &app.goal {
+        lines.push(Line::from(vec![
+            Span::styled("  Goal: ", Style::default().fg(theme.muted)),
+            Span::styled(
+                crate::output::truncate_str(goal, 24),
                 Style::default().fg(theme.fg),
             ),
         ]));
@@ -657,6 +676,8 @@ fn render_composer(frame: &mut Frame, app: &TuiApp, area: Rect) {
             " ERR: {} | Tab:sidebar  Enter:send  Esc:cancel",
             crate::output::truncate_str(err, 40)
         )
+    } else if app.status == AppStatus::Streaming {
+        " Streaming...  Enter:wait  Ctrl+X:stop  /goal set  /config view  Tab:sidebar".to_string()
     } else if app.total_cost_usd > 0.0 {
         format!(
             " Cost: ${:.4} | {}t used | Tab:sidebar  Enter:send  Esc:cancel  /:commands",

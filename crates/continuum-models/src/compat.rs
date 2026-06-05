@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::time::Duration;
 
 use continuum_core::{
     caps::{CallModels, Cap, ReadSecrets},
@@ -138,21 +139,16 @@ impl ModelProvider for CompatProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&body)
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
             let provider = self.id();
-            return Err(match status.as_u16() {
-                429 => ModelError::RateLimited { provider },
-                401 | 403 => ModelError::AuthFailed(provider),
-                _ => {
-                    let body = response.text().await.unwrap_or_default();
-                    ModelError::Other(format!("{} HTTP {status}: {body}", self.provider_id))
-                }
-            });
+            let body = response.text().await.unwrap_or_default();
+            return Err(crate::map_http_error(provider, status, body));
         }
 
         let sse_stream = crate::sse::parse_sse(response, cancel);
@@ -180,21 +176,16 @@ impl ModelProvider for CompatProvider {
                 "model": req.model.as_str(),
                 "input": req.inputs,
             }))
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
             let provider = self.id();
-            return Err(match status.as_u16() {
-                429 => ModelError::RateLimited { provider },
-                401 | 403 => ModelError::AuthFailed(provider),
-                _ => {
-                    let body = response.text().await.unwrap_or_default();
-                    ModelError::Other(format!("{} HTTP {status}: {body}", self.provider_id))
-                }
-            });
+            let body = response.text().await.unwrap_or_default();
+            return Err(crate::map_http_error(provider, status, body));
         }
 
         let data: serde_json::Value = response

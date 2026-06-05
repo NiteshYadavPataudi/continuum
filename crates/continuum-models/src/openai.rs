@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::time::Duration;
 
 use continuum_core::{
     caps::{CallModels, Cap, ReadSecrets},
@@ -90,9 +91,10 @@ impl ModelProvider for OpenAIProvider {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&body)
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
@@ -124,9 +126,10 @@ impl ModelProvider for OpenAIProvider {
                 "model": req.model.as_str(),
                 "input": req.inputs,
             }))
+            .timeout(Duration::from_secs(60))
             .send()
             .await
-            .map_err(|e| ModelError::Network(e.to_string()))?;
+            .map_err(crate::map_reqwest_error)?;
 
         let status = response.status();
         if !status.is_success() {
@@ -192,12 +195,6 @@ async fn handle_openai_error(
     status: reqwest::StatusCode,
 ) -> ModelError {
     let provider = ProviderId::new("openai");
-    match status.as_u16() {
-        429 => ModelError::RateLimited { provider },
-        401 => ModelError::AuthFailed(provider),
-        _ => {
-            let body = response.text().await.unwrap_or_default();
-            ModelError::Other(format!("OpenAI HTTP {}: {}", status, body))
-        }
-    }
+    let body = response.text().await.unwrap_or_default();
+    crate::map_http_error(provider, status, body)
 }

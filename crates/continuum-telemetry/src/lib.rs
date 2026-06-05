@@ -82,6 +82,16 @@ pub enum DashboardEvent {
         target: String,
         message: String,
     },
+    /// A live assistant turn has started streaming.
+    AssistantTurnStarted { turn_id: u64, prompt: String },
+    /// A live assistant turn produced another text delta.
+    AssistantTurnDelta { turn_id: u64, delta: String },
+    /// A live assistant turn completed successfully.
+    AssistantTurnCompleted { turn_id: u64 },
+    /// A live assistant turn failed.
+    AssistantTurnFailed { turn_id: u64, error: String },
+    /// The session goal changed.
+    GoalUpdated { goal: Option<String> },
     /// Shutdown signal.
     Shutdown,
 }
@@ -230,6 +240,19 @@ mod tests {
         let event = DashboardEvent::Shutdown;
         match event {
             DashboardEvent::Shutdown => {}
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_dashboard_event_goal_updated() {
+        let event = DashboardEvent::GoalUpdated {
+            goal: Some("ship the TUI".into()),
+        };
+        match event {
+            DashboardEvent::GoalUpdated { ref goal } => {
+                assert_eq!(goal.as_deref(), Some("ship the TUI"));
+            }
             _ => panic!("wrong variant"),
         }
     }
