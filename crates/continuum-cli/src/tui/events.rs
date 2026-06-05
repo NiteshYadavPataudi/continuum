@@ -320,10 +320,7 @@ fn send_chat_prompt(app: &mut TuiApp, input: &str) -> bool {
     let session = app.session.clone();
     let goal = app.goal.clone();
     let event_tx = app.event_tx.clone();
-    let cancel = app
-        .active_turn_cancel
-        .clone()
-        .unwrap_or_default();
+    let cancel = app.active_turn_cancel.clone().unwrap_or_default();
 
     if let Some(event_tx) = event_tx {
         spawn_streaming_assistant_turn(AssistantTurnRequest {
