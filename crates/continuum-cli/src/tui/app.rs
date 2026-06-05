@@ -496,7 +496,7 @@ impl TuiApp {
                     "Could not save preferred model to config: {err}"
                 ));
             }
-            self.add_system_message(&format!("Switched to {provider}/{model_id}"));
+            self.add_system_message(&format!("Switched to {provider}/{}", model.model_id));
         }
     }
 

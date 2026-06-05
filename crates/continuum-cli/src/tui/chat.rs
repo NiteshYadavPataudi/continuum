@@ -37,7 +37,7 @@ pub fn spawn_streaming_assistant_turn(request: AssistantTurnRequest) {
         } = request;
 
         let provider_id = session.provider.clone();
-        let model_id = session.model.clone();
+        let model_id = normalize_request_model_id(&provider_id, &session.model);
         let config = session.config.clone();
         let _ = event_tx.send(DashboardEvent::AssistantTurnStarted {
             turn_id,
@@ -160,7 +160,10 @@ async fn complete_with_openrouter_fallback(
                 });
 
                 let fallback_request = CompletionRequest::new(
-                    continuum_core::ids::ModelId::new(&fallback_model),
+                    continuum_core::ids::ModelId::new(&normalize_request_model_id(
+                        provider_id,
+                        &fallback_model,
+                    )),
                     request.messages.clone(),
                 )
                 .with_temperature(request.temperature.unwrap_or(0.2))
@@ -184,6 +187,40 @@ async fn complete_with_openrouter_fallback(
                 Err(err)
             }
         }
+    }
+}
+
+fn normalize_request_model_id(provider_id: &str, model_id: &str) -> String {
+    if provider_id != "openrouter" {
+        return model_id.to_string();
+    }
+
+    let mut suffix = model_id;
+    while let Some(rest) = suffix.strip_prefix("openrouter/") {
+        suffix = rest;
+    }
+
+    format!("openrouter/{suffix}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_request_model_id;
+
+    #[test]
+    fn openrouter_request_model_is_collapsed_to_single_prefix() {
+        assert_eq!(
+            normalize_request_model_id("openrouter", "openrouter/owl-alpha"),
+            "openrouter/owl-alpha"
+        );
+        assert_eq!(
+            normalize_request_model_id("openrouter", "owl-alpha"),
+            "openrouter/owl-alpha"
+        );
+        assert_eq!(
+            normalize_request_model_id("openrouter", "openrouter/openrouter/owl-alpha"),
+            "openrouter/owl-alpha"
+        );
     }
 }
 
